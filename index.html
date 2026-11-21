@@ -218,7 +218,7 @@
   }
 
   /* ---------------- Transport ---------------- */
-  const SYNC_ACTIONS = ['pull_batch', 'manifest', 'push'];
+  const SYNC_ACTIONS = ['pull_batch', 'manifest', 'push', 'sync_gas'];
 
   async function req(p = {}) {
     p.u = p.u || L.u || K.u || 'admin';
@@ -236,6 +236,7 @@
         }
       } catch {}
     }
+    if (p.a === 'sync_gas') return { ok: false, e: 'skip_fallback' };
     if (HARD.gasUrl && /^https?:\/\//i.test(HARD.gasUrl)) {
       try {
         const res = await fetch(HARD.gasUrl, {
@@ -275,8 +276,20 @@
       if (force) L.vs = '[]';
       const ver = JSON.parse(L.vs || '[]');
 
-      const r0 = await req({ a: 'manifest', tn: tables, cols: K.cols });
-      let m = r0?.data || r0;
+      const queuedBefore = await idbGetAll('mut');
+      let m = null;
+
+      // Saat force sync (refresh / reset db) & tidak ada antrean lokal tertunda,
+      // samakan dulu D1 <-> Google Spreadsheet secara 2 arah agar 100% identik
+      if (force && !queuedBefore.length && HARD.d1Url && HARD.gasUrl) {
+        const sg = await req({ a: 'sync_gas', tn: tables, cols: K.cols, gasUrl: HARD.gasUrl });
+        if (sg?.ok && Array.isArray(sg.v)) m = sg;
+      }
+
+      if (!m) {
+        const r0 = await req({ a: 'manifest', tn: tables, cols: K.cols, gasUrl: HARD.gasUrl });
+        m = r0?.data || r0;
+      }
       if (!m?.v) throw new Error('manifest');
       if (Array.isArray(m.shs)) m.shs.forEach(s => { if (!K.shs.includes(s)) K.shs.push(s); });
       if (m.cols && typeof m.cols === 'object') {
