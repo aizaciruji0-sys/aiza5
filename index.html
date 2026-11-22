@@ -298,7 +298,6 @@
         Object.entries(m.vis).forEach(([k, sv]) => { if (!K.vis[k]) K.vis[k] = sv; });
       }
 
-      // Pastikan seluruh antrean mutasi yang masuk hingga detik ini terkirim habis sebelum pull
       let queued = await idbGetAll('mut');
       const seed = [];
       K.shs.forEach((t, i) => {
@@ -691,7 +690,9 @@
     const rows = K.db[t] || [], u = S2(K.u || 'admin');
     if (K.parent?.type === t) {
       const r = rows.find(x => S2(x[0]) === S2(K.parent.id));
-      if (r && isUserVisible(r, t) && (K.parent.open || isOpenStatus(cV(r, t, 'status')))) return { type: t, id: r[0], row: r };
+      if (r && isUserVisible(r, t) && (K.parent.open || (S2(cV(r, t, 'user')) === u && isOpenStatus(cV(r, t, 'status'))))) {
+        return { type: t, id: r[0], row: r };
+      }
     }
     const r = rows.find(x => S2(cV(x, t, 'user')) === u && isOpenStatus(cV(x, t, 'status')));
     return r ? { type: t, id: r[0], row: r } : null;
@@ -751,7 +752,8 @@
   const queryRows = () => {
     const rows = K.db[K.cur] || [], q = S2(dom.q.value).split(/\s+/).filter(Boolean),
           pType = parentOf(K.cur), op = pType ? getOpenTrx(pType) : null, res = [],
-          cm = K.slice === 'piutang' ? cicilMap() : null, pm = prodMap(), km = kontakMap();
+          cm = K.slice === 'piutang' ? cicilMap() : null, pm = prodMap(), km = kontakMap(),
+          uNow = S2(K.u || 'admin');
 
     const sliceChecks = {
       ready: r => K.cur !== 'produk' || (Z(cV(r, 'produk', 'stok')) > 0 && matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true)),
@@ -769,11 +771,17 @@
       const r = rows[i] || [];
       if (!isUserVisible(r, K.cur)) continue;
       if (K.slice && sliceChecks[K.slice] && !sliceChecks[K.slice](r)) continue;
-      if (pType && op) {
-        if (S2(cV(r, K.cur, fkCol(K.cur))) !== S2(op.id)) continue;
-        const pRow = K.db[pType]?.find(x => S2(x[0]) === S2(op.id));
-        const pUser = S2(cV(pRow, pType, 'user'));
-        if (!K.parent?.open && pUser && pUser !== S2(K.u || 'admin')) continue;
+      if (pType) {
+        const fkVal = S2(cV(r, K.cur, fkCol(K.cur)));
+        if (op) {
+          if (fkVal !== S2(op.id)) continue;
+          const pUser = S2(cV(op.row, pType, 'user'));
+          if (!K.parent?.open && pUser && pUser !== uNow) continue;
+        } else {
+          // Jika user (termasuk admin) tidak punya keranjang aktif, tampilkan hanya item milik transaksi user itu sendiri
+          const pRow = K.db[pType]?.find(x => S2(x[0]) === fkVal);
+          if (!pRow || S2(cV(pRow, pType, 'user')) !== uNow) continue;
+        }
       }
       const extraSearch = isTrx() ? ' ' + resolveKontakName(cV(r, K.cur, 'idkontak'), km) : '';
       if (!q.length || q.every(w => (r.join(' ') + extraSearch).toLowerCase().includes(w))) res.push(i);
@@ -1133,6 +1141,7 @@
       if (f) { const pw = cV(f, 'users', 'password'); if (pw && pw !== p) return msg('password salah'); K.u = L.u = f[0]; }
       else if (!K.db.users?.length && u === 'admin') { const adm = userRow('admin', 'admin', 'admin'); K.db.users = [adm]; save(adm, 'users', 2); K.u = L.u = 'admin'; }
       else return msg('user tidak terdaftar');
+      K.parent = K.ret = K.prev = null;
       persist(true); syn(true); setView('dash', null); msg(); render();
     },
     reg: () => {
@@ -1141,7 +1150,8 @@
       if (K.db.users?.some(r => S2(r[0]) === u)) return msg('user sudah ada');
       const row = userRow(u, 'user', p);
       (K.db.users = K.db.users || []).push(row);
-      K.u = L.u = u; persist(true); save(row, 'users', 2); setView('dash', null); msg(); render();
+      K.u = L.u = u; K.parent = K.ret = K.prev = null;
+      persist(true); save(row, 'users', 2); setView('dash', null); msg(); render();
     },
     bypass: () => {
       K.db.users = K.db.users || [];
@@ -1149,7 +1159,7 @@
         const adm = userRow('admin', 'admin', 'admin');
         K.db.users.unshift(adm); save(adm, 'users', 2);
       }
-      K.u = L.u = 'admin';
+      K.u = L.u = 'admin'; K.parent = K.ret = K.prev = null;
       persist(true); syn(true); setView('dash', null); msg(); render();
     },
     back: () => {
@@ -1440,7 +1450,7 @@
     grid: () => { K.grid = !K.grid; render(); },
     dir: () => { K.dir = -K.dir; K.page = 1; render(); },
     more: () => { K.page++; render(); },
-    logout: () => { K.u = L.u = ''; K.ret = K.prev = null; K.slice = ''; persist(true); render(); },
+    logout: () => { K.u = L.u = ''; K.parent = K.ret = K.prev = null; K.slice = ''; persist(true); render(); },
     cam: () => dom.fCam.click(),
     pic: () => dom.fImg.click(),
     'doc-upload': () => dom.fDoc.click(),
