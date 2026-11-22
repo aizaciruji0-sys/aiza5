@@ -691,9 +691,9 @@
     const rows = K.db[t] || [], u = S2(K.u || 'admin');
     if (K.parent?.type === t) {
       const r = rows.find(x => S2(x[0]) === S2(K.parent.id));
-      if (r && isUserVisible(r, t) && isOpenStatus(cV(r, t, 'status'))) return { type: t, id: r[0], row: r };
+      if (r && isUserVisible(r, t) && (K.parent.open || isOpenStatus(cV(r, t, 'status')))) return { type: t, id: r[0], row: r };
     }
-    const r = rows.find(x => (isAdmin() || S2(cV(x, t, 'user')) === u) && isOpenStatus(cV(x, t, 'status')));
+    const r = rows.find(x => S2(cV(x, t, 'user')) === u && isOpenStatus(cV(x, t, 'status')));
     return r ? { type: t, id: r[0], row: r } : null;
   };
   const hasDraftItems = t => {
@@ -769,7 +769,12 @@
       const r = rows[i] || [];
       if (!isUserVisible(r, K.cur)) continue;
       if (K.slice && sliceChecks[K.slice] && !sliceChecks[K.slice](r)) continue;
-      if (pType && op && S2(cV(r, K.cur, fkCol(K.cur))) !== S2(op.id)) continue;
+      if (pType && op) {
+        if (S2(cV(r, K.cur, fkCol(K.cur))) !== S2(op.id)) continue;
+        const pRow = K.db[pType]?.find(x => S2(x[0]) === S2(op.id));
+        const pUser = S2(cV(pRow, pType, 'user'));
+        if (!K.parent?.open && pUser && pUser !== S2(K.u || 'admin')) continue;
+      }
       const extraSearch = isTrx() ? ' ' + resolveKontakName(cV(r, K.cur, 'idkontak'), km) : '';
       if (!q.length || q.every(w => (r.join(' ') + extraSearch).toLowerCase().includes(w))) res.push(i);
     }
