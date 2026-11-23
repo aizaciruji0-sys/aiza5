@@ -15,20 +15,13 @@
     :root[data-theme=dark]{color-scheme:dark}
     *{box-sizing:border-box;margin:0;padding:0;border-radius:0!important;transition:none!important;animation:none!important;box-shadow:none!important}
     [hidden]{display:none!important}
-    body{
-      display:flex;flex-direction:column;gap:var(--gap);
-      padding:var(--gap) var(--gap) 60px;
-      font:14px/1.3 sans-serif;overflow-wrap:anywhere;overflow-x:hidden;
-    }
+    body{display:flex;flex-direction:column;gap:var(--gap);padding:var(--gap) var(--gap) 60px;font:14px/1.3 sans-serif;overflow-wrap:anywhere;overflow-x:hidden}
     img,video{max-width:100%;height:auto;border:none}
     header,footer,main,#tools,#box-form,#box-nota{display:flex;flex-wrap:wrap;gap:var(--gap);width:100%}
     header,footer{background:Canvas;color:CanvasText;z-index:10}
     header{position:sticky;top:0;flex-wrap:nowrap;padding-top:env(safe-area-inset-top,0px)}
     footer{position:fixed;inset:auto 0 0;padding:var(--gap);padding-bottom:calc(var(--gap) + env(safe-area-inset-bottom,0px))}
-    button,input,select,textarea{
-      flex:1 1 130px;min-width:0;min-height:48px;padding:8px 10px;
-      border:1px solid;background:none;color:inherit;font:inherit;
-    }
+    button,input,select,textarea{flex:1 1 130px;min-width:0;min-height:48px;padding:8px 10px;border:1px solid;background:none;color:inherit;font:inherit}
     textarea{display:block;resize:vertical;min-height:80px}
     textarea[data-col="hide"],textarea[data-col="konten"]{flex:1 1 100%;width:100%;min-height:calc(100dvh - 180px)}
     header>input{flex:1;min-width:60px}
@@ -43,11 +36,7 @@
     body[data-grid="1"] #list>div{flex-direction:column;align-items:flex-start;padding:4px}
     body[data-grid="1"] #list img{display:block;width:100%;height:85px;object-fit:cover;margin-bottom:4px}
     #tape{width:100%;max-width:280px;white-space:pre-wrap;font:12px/1.25 monospace}
-    @media print{
-      body{padding:0}
-      header,footer,#tools,#msg{display:none!important}
-      #tape{width:58mm!important;max-width:none}
-    }
+    @media print{body{padding:0}header,footer,#tools,#msg{display:none!important}#tape{width:58mm!important;max-width:none}}
   </style>
   <script>try{var t=localStorage.theme;if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
@@ -93,7 +82,7 @@
   'use strict';
 
   /* ============================================================
-     1. KONFIGURASI DINAMIS SSOT
+     1. SSOT KONFIGURASI
      ============================================================ */
   const HARD = {
     d1Url: 'https://aiza5.aizaciruji0.workers.dev',
@@ -137,28 +126,20 @@
     db: {}
   };
   HARD.shs.forEach(s => { HARD.db[s] = []; });
-  HARD.db.skema = HARD.shs.map(s => [
-    s,
-    (HARD.cols[s] || []).join(','),
-    (HARD.vis[s] || []).join(','),
-    (HARD.cols[s] || []).join(',')
-  ]);
+  HARD.db.skema = HARD.shs.map(s => [s, HARD.cols[s].join(','), HARD.vis[s].join(','), HARD.cols[s].join(',')]);
 
   /* ============================================================
-     2. MESIN UTAMA APEX ULTRA PWA KISS ABSOLUTE
+     2. MESIN UTAMA (KISS ABSOLUTE)
      ============================================================ */
   const W = window, L = localStorage, $ = id => document.getElementById(id);
-  let db = null, syncing = false, syncDebounce = null, persistDebounce = null, scanStream = null, scanTimer = null;
+  let db = null, syncing = false, syncTimer = null, scanStream = null, scanTimer = null, seq = 0, needSync = 0;
 
-  const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('sync') : { postMessage() {}, onmessage: null };
-  const softRender = () => {
-    const ae = document.activeElement;
-    if (ae && (ae.id === 'q' || dom.fb.contains(ae) || dom.db.contains(ae))) return;
-    if (K.u && K.idx === null && K.v !== 'edit') render();
-  };
-  bc.onmessage = e => {
-    if (e.data === 'synced') idbGet('apex_matrix').then(m => { if (m && typeof m === 'object') Object.assign(K.db, m); applySchemaTable(); softRender(); });
-    else if (e.data === 'kick' && !syncing) syn();
+  const dom = {
+    h: $('h'), q: $('q'), msg: $('msg'), tools: $('tools'),
+    scanBox: $('scan-box'), scanVid: $('scan-vid'),
+    fCam: $('f-cam'), fImg: $('f-img'), fDoc: $('f-doc'), fImp: $('f-imp'),
+    sh: $('sh-sel'), st: $('st-sel'), act: $('act-sel'),
+    fb: $('box-form'), db: $('box-dash'), ls: $('list'), ft: $('ft'), tape: $('tape'), bn: $('box-nota')
   };
 
   /* ---------------- IndexedDB ---------------- */
@@ -170,194 +151,138 @@
         if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv');
         if (!d.objectStoreNames.contains('mut')) d.createObjectStore('mut', { keyPath: 'i' });
       };
-      rq.onsuccess = e => { db = e.target.result; cb?.(db); };
-      rq.onerror = () => cb?.(null);
-    } catch { cb?.(null); }
+      rq.onsuccess = e => { db = e.target.result; cb?.(); };
+      rq.onerror = () => cb?.();
+    } catch { cb?.(); }
   }
-  const idbGet = (key, st = 'kv') => new Promise(res => {
+  const idbGet = (k, st = 'kv') => new Promise(res => {
     if (!db) return res(null);
-    try { const rq = db.transaction(st, 'readonly').objectStore(st).get(key); rq.onsuccess = () => res(rq.result ?? null); rq.onerror = () => res(null); } catch { res(null); }
+    try { const r = db.transaction(st, 'readonly').objectStore(st).get(k); r.onsuccess = () => res(r.result ?? null); r.onerror = () => res(null); } catch { res(null); }
   });
-  const idbGetAll = (st = 'mut') => new Promise(res => {
+  const idbAll = (st = 'mut') => new Promise(res => {
     if (!db) return res([]);
-    try { const rq = db.transaction(st, 'readonly').objectStore(st).getAll(); rq.onsuccess = () => res(rq.result ?? []); rq.onerror = () => res([]); } catch { res([]); }
+    try { const r = db.transaction(st, 'readonly').objectStore(st).getAll(); r.onsuccess = () => res(r.result ?? []); r.onerror = () => res([]); } catch { res([]); }
   });
-  function idbPut(val, key = null, st = 'kv') {
-    if (!db) return;
+  const idbPut = (val, k = null, st = 'kv', onDone = null) => {
+    if (!db) return onDone?.();
     try {
-      const s = db.transaction(st, 'readwrite').objectStore(st);
-      st === 'kv' && key != null ? s.put(val, key) : s.put(val);
-    } catch {}
-  }
-  function idbClearStore(st) {
-    if (!db) return;
-    try { if (db.objectStoreNames.contains(st)) db.transaction(st, 'readwrite').objectStore(st).clear(); } catch {}
-  }
-  function idbDelKeys(keys, st = 'mut') {
+      const tx = db.transaction(st, 'readwrite'), s = tx.objectStore(st);
+      st === 'kv' && k != null ? s.put(val, k) : s.put(val);
+      if (onDone) tx.oncomplete = onDone;
+    } catch { onDone?.(); }
+  };
+  const idbDel = (keys, st = 'mut') => {
     if (!db || !keys?.length) return;
-    try {
-      const s = db.transaction(st, 'readwrite').objectStore(st);
-      keys.forEach(k => s.delete(k));
-    } catch {}
-  }
+    try { const s = db.transaction(st, 'readwrite').objectStore(st); keys.forEach(k => s.delete(k)); } catch {}
+  };
+  const idbClear = st => { if (db) try { db.transaction(st, 'readwrite').objectStore(st).clear(); } catch {} };
 
-  /* ---------------- Antrean Mutasi FIFO ---------------- */
-  let seq = 0, saves = 0;
-  function save(row, targetTable = K.cur, actionType = 2) {
-    saves++;
-    const cloned = Array.isArray(row) ? row.slice() : Object.values(row);
+  /* ---------------- Mutasi & Sync Linear ---------------- */
+  function save(row, tn = K.cur, y = 2) {
     idbPut({
-      i: Date.now().toString(36) + (seq = (seq + 1) % 46656).toString(36).padStart(3, '0') + Math.random().toString(36).slice(2, 4),
-      tn: targetTable,
-      y: actionType,
-      r: cloned,
-      ts: Date.now()
-    }, null, 'mut');
-    bc.postMessage('kick');
-    clearTimeout(syncDebounce);
-    syncDebounce = setTimeout(() => syn(false), 120);
+      i: `${Date.now().toString(36)}_${(++seq).toString(36).padStart(4, '0')}`,
+      tn, y, r: Array.isArray(row) ? row.slice() : Object.values(row)
+    }, null, 'mut', () => {
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(() => syn(false), 80);
+    });
   }
-
-  /* ---------------- Transport ---------------- */
-  const SYNC_ACTIONS = ['pull_batch', 'manifest', 'push', 'sync_gas'];
 
   async function req(p = {}) {
-    p.u = p.u || L.u || K.u || 'admin';
-    if (HARD.d1Url && SYNC_ACTIONS.includes(p.a)) {
+    p.u = L.u || K.u || 'admin';
+    if (HARD.d1Url) {
       try {
         const res = await fetch(HARD.d1Url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(p),
-          signal: AbortSignal.timeout?.(30000)
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(p), signal: AbortSignal.timeout?.(25000)
         });
-        if (res.ok) {
-          const r = await res.json();
-          if (r?.ok || r?.s === 'ok' || r?.status === 'ok') return r;
-        }
+        if (res.ok) { const j = await res.json(); if (j?.ok) return j; }
       } catch {}
     }
-    if (p.a === 'sync_gas') return { ok: false, e: 'skip_fallback' };
-    if (HARD.gasUrl && /^https?:\/\//i.test(HARD.gasUrl)) {
+    if (p.a !== 'sync_gas' && HARD.gasUrl) {
       try {
         const res = await fetch(HARD.gasUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(p),
-          redirect: 'follow',
-          signal: AbortSignal.timeout?.(30000)
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(p), redirect: 'follow', signal: AbortSignal.timeout?.(25000)
         });
         const j = await res.json();
-        return { ok: j?.ok ?? j?.s === 'ok', ...j };
-      } catch (e) {
-        return { ok: false, e };
-      }
+        return { ok: Boolean(j?.ok), ...j };
+      } catch {}
     }
-    return { ok: false, e: 'offline' };
+    return { ok: false };
   }
 
-  /* ---------------- Remap Baris Berdasarkan Urutan Kolom ---------------- */
-  const remapRows = (rows, srcCols, dstCols) => {
-    if (!Array.isArray(rows) || !rows.length || !Array.isArray(srcCols) || !Array.isArray(dstCols)) return rows || [];
-    const sNorm = srcCols.map(S2), dNorm = dstCols.map(S2);
-    if (sNorm.length === dNorm.length && sNorm.every((c, i) => c === dNorm[i])) return rows;
-    const idxMap = dNorm.map(c => sNorm.indexOf(c));
-    return rows.map(r => idxMap.map((si, di) => si !== -1 ? (r[si] ?? '') : (r[di] ?? '')));
+  const remapRows = (rows, src, dst) => {
+    if (!Array.isArray(rows) || !rows.length || !Array.isArray(src) || !Array.isArray(dst)) return rows || [];
+    const s = src.map(S2), d = dst.map(S2);
+    if (s.length === d.length && s.every((c, i) => c === d[i])) return rows;
+    const idx = d.map(c => s.indexOf(c));
+    return rows.map(r => idx.map((si, di) => si !== -1 ? (r[si] ?? '') : (r[di] ?? '')));
   };
 
-  /* ---------------- Sinkronisasi Online Skema & Data ---------------- */
-  let again = 0;
   async function syn(force = false) {
     if (!navigator.onLine || !db) return false;
-    if (syncing) { again = Math.max(again, force ? 2 : 1); return false; }
-    syncing = true; msg('sedang sync...');
+    if (syncing) { needSync = Math.max(needSync, force ? 2 : 1); return false; }
+    syncing = true; msg('sync...');
     let ok = false;
     try {
-      const tables = [...K.shs];
       if (force) L.vs = '[]';
       const ver = JSON.parse(L.vs || '[]');
 
-      const queuedBefore = await idbGetAll('mut');
-      let m = null;
-
-      if (force && !queuedBefore.length && HARD.d1Url && HARD.gasUrl) {
-        const sg = await req({ a: 'sync_gas', tn: tables, cols: K.cols, gasUrl: HARD.gasUrl });
-        if (sg?.ok && Array.isArray(sg.v)) m = sg;
+      const queued = await idbAll('mut');
+      if (queued.length) {
+        const pr = await req({ a: 'push', m: queued, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl });
+        if (!pr.ok) throw 0;
+        idbDel(queued.map(x => x.i));
       }
 
-      if (!m) {
-        const r0 = await req({ a: 'manifest', tn: tables, cols: K.cols, gasUrl: HARD.gasUrl });
-        m = r0?.data || r0;
-      }
-      if (!m?.v) throw new Error('manifest');
-      if (Array.isArray(m.shs)) m.shs.forEach(s => { if (!K.shs.includes(s)) K.shs.push(s); });
-      if (m.cols && typeof m.cols === 'object') {
-        Object.entries(m.cols).forEach(([k, sc]) => { if (!K.cols[k]) K.cols[k] = sc; });
-      }
-      if (m.vis && typeof m.vis === 'object') {
-        Object.entries(m.vis).forEach(([k, sv]) => { if (!K.vis[k]) K.vis[k] = sv; });
-      }
+      let m = force ? await req({ a: 'sync_gas', tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl }) : null;
+      if (!m?.v) m = await req({ a: 'manifest', tn: K.shs, cols: K.cols });
+      if (!m?.v) throw 0;
 
-      let queued = await idbGetAll('mut');
+      (m.shs || []).forEach(s => { if (!K.shs.includes(s)) K.shs.push(s); });
+      Object.entries(m.cols || {}).forEach(([k, c]) => { if (!K.cols[k] && c?.length) K.cols[k] = c; });
+      Object.entries(m.vis || {}).forEach(([k, v]) => { if (!K.vis[k] && v?.length) K.vis[k] = v; });
+
       const seed = [];
       K.shs.forEach((t, i) => {
-        if ((m.v[i] === '0_0_0' || m.v[i] === '0_0' || !m.v[i]) && (K.db[t] || []).length) {
-          (K.db[t] || []).forEach(row => seed.push({ tn: t, y: 2, r: row }));
-        }
+        if ((!m.v[i] || m.v[i] === '0_0_0') && K.db[t]?.length) K.db[t].forEach(r => seed.push({ tn: t, y: 2, r }));
       });
-
-      while (queued.length || seed.length) {
-        const batch = [...seed.splice(0), ...queued];
-        const pr = await req({ a: 'push', m: batch, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl });
-        if (!pr?.ok) throw new Error('push');
-        idbDelKeys(queued.map(x => x.i), 'mut');
-        m = pr.manifest || m;
-        queued = await idbGetAll('mut');
+      if (seed.length) {
+        const sr = await req({ a: 'push', m: seed, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl });
+        if (sr.manifest?.v) m = sr.manifest;
       }
 
-      const markAfterPush = saves;
-      const toPull = [];
-      K.shs.forEach((_, i) => { if (force || (m.v[i] && m.v[i] !== ver[i])) toPull.push({ t: i }); });
-      if (toPull.length) {
+      const toPull = K.shs.map((_, i) => (force || (m.v[i] && m.v[i] !== ver[i])) ? { t: i } : null).filter(Boolean);
+      if (toPull.length && !(await idbAll('mut')).length) {
         const b = await req({ a: 'pull_batch', reqs: toPull, tn: K.shs, cols: K.cols });
-        if (saves !== markAfterPush || (await idbGetAll('mut')).length) {
-          again = Math.max(again, 1);
-        } else {
-          const results = b?.data?.results || b?.results || [];
-          const skemaRes = results.find(x => K.shs[x?.t] === 'skema');
-          if (skemaRes && skemaRes.v) {
-            ver[skemaRes.t] = skemaRes.v;
-            K.db.skema = remapRows(skemaRes.r || [], skemaRes.cols, K.cols.skema);
-            applySchemaTable();
-          }
-          results.forEach(x => {
+        if (b.ok && Array.isArray(b.results)) {
+          b.results.forEach(x => {
             const name = K.shs[x?.t];
-            if (!x?.v || !name || name === 'skema') return;
+            if (!name || !x?.v) return;
             ver[x.t] = x.v;
-            const targetCols = K.cols[name] || x.cols || [];
-            if (!K.cols[name] && Array.isArray(x.cols) && x.cols.length) K.cols[name] = x.cols;
-            K.db[name] = remapRows(x.r || [], x.cols, targetCols);
+            if (!K.cols[name] && x.cols?.length) K.cols[name] = x.cols;
+            K.db[name] = remapRows(x.r || [], x.cols, K.cols[name]);
           });
-          if (skemaRes) applySchemaTable();
+          applySchemaTable();
           L.vs = JSON.stringify(ver);
-          persist(true);
-          bc.postMessage('synced');
-          softRender();
+          persist();
+          const ae = document.activeElement;
+          if (K.u && K.idx === null && K.v !== 'edit' && (!ae || (ae.id !== 'q' && !dom.fb.contains(ae) && !dom.db.contains(ae)))) render();
         }
       }
       ok = true;
-    } catch {
-      ok = false;
-    } finally {
+    } catch { ok = false; }
+    finally {
       syncing = false;
-      const a = again; again = 0;
-      if (a) setTimeout(() => syn(a === 2), 0);
+      const nxt = needSync; needSync = 0;
+      if (nxt) setTimeout(() => syn(nxt === 2), 0);
     }
     msg(ok ? '' : 'offline');
     return ok;
   }
 
-  /* ---------------- State & Manajemen Tabel Skema ---------------- */
+  /* ---------------- State & Skema ---------------- */
   const dl = (content, fileName, mime = 'text/plain;charset=utf-8') => {
     const u = URL.createObjectURL(new Blob([content], { type: mime })), a = document.createElement('a');
     a.href = u; a.download = fileName; document.body.appendChild(a); a.click();
@@ -369,87 +294,55 @@
     conf: null, prefill: null, parent: null, receiptRaw: '', prodIdx: null, slice: '',
     df: { u: '', from: '', to: '', kat: '' },
     shs: [...HARD.shs], cols: JSON.parse(JSON.stringify(HARD.cols)), vis: JSON.parse(JSON.stringify(HARD.vis)),
-    fvis: {}, db: JSON.parse(JSON.stringify(HARD.db)),
-    ret: null, prev: null, writing: false
+    fvis: {}, db: JSON.parse(JSON.stringify(HARD.db)), ret: null, prev: null, writing: false
   };
-
-  K.shs.forEach(s => {
-    if (!K.cols[s]) K.cols[s] = ['id', 'nama', 'ket'];
-    if (!K.vis[s]) K.vis[s] = K.cols[s].slice(0, 3);
-    if (!K.db[s]) K.db[s] = [];
-  });
 
   function applySchemaTable() {
     if (!Array.isArray(K.db.skema)) K.db.skema = [];
-    const existingMap = new Map(K.db.skema.map(r => [S2(r[0]), r]));
-
+    const seen = new Set(K.db.skema.map(r => S2(r[0])));
     HARD.shs.forEach(s => {
-      const sh = S2(s);
-      if (sh && !existingMap.has(sh)) {
-        const newRow = [
-          sh,
-          (K.cols[sh] || ['id', 'nama', 'ket']).join(','),
-          (K.vis[sh] || (K.cols[sh] || []).slice(0, 3)).join(','),
-          (K.fvis[sh] || K.cols[sh] || ['id', 'nama', 'ket']).join(',')
-        ];
-        K.db.skema.push(newRow);
-        existingMap.set(sh, newRow);
-      }
+      if (!seen.has(s)) K.db.skema.push([s, K.cols[s].join(','), K.vis[s].join(','), K.cols[s].join(',')]);
     });
-
-    const newShs = [];
+    const nextShs = [];
     K.db.skema.forEach(r => {
       const sh = S2(r[0]);
-      if (!sh || newShs.includes(sh)) return;
-      newShs.push(sh);
+      if (!sh || nextShs.includes(sh)) return;
+      nextShs.push(sh);
       const oldCols = (K.cols[sh] || ['id', 'nama', 'ket']).slice();
       const nc = String(r[1] || '').split(',').map(S2).filter(Boolean);
       const nv = String(r[2] || '').split(',').map(S2).filter(Boolean);
       const nf = String(r[3] || '').split(',').map(S2).filter(Boolean);
-      if (nc.length) K.cols[sh] = nc;
-      else if (!K.cols[sh]) K.cols[sh] = ['id', 'nama', 'ket'];
-      const vValid = nv.filter(x => K.cols[sh].includes(x));
-      const fValid = nf.filter(x => K.cols[sh].includes(x));
-      K.vis[sh] = vValid.length ? vValid : K.cols[sh].slice(0, 3);
-      K.fvis[sh] = fValid.length ? fValid : K.cols[sh].slice();
-      K.db[sh] = remapRows(K.db[sh] || [], oldCols, K.cols[sh]);
-      (K.db[sh] || []).forEach(dr => {
-        if (dr.length > K.cols[sh].length) dr.length = K.cols[sh].length;
-        while (dr.length < K.cols[sh].length) dr.push('');
+      K.cols[sh] = nc.length ? nc : oldCols;
+      K.vis[sh] = nv.filter(x => K.cols[sh].includes(x));
+      if (!K.vis[sh].length) K.vis[sh] = K.cols[sh].slice(0, 3);
+      K.fvis[sh] = nf.filter(x => K.cols[sh].includes(x));
+      if (!K.fvis[sh].length) K.fvis[sh] = K.cols[sh].slice();
+      K.db[sh] = remapRows(K.db[sh] || [], oldCols, K.cols[sh]).map(dr => {
+        const row = dr.slice(0, K.cols[sh].length);
+        while (row.length < K.cols[sh].length) row.push('');
+        return row;
       });
     });
-
-    if (newShs.length) {
-      K.shs.forEach(s => {
-        if (!newShs.includes(s) && !HARD.shs.includes(s)) {
-          delete K.db[s]; delete K.cols[s]; delete K.vis[s]; delete K.fvis[s];
-        }
-      });
-      HARD.shs.forEach(s => { if (!newShs.includes(s)) newShs.push(s); });
-      K.shs = newShs;
-      if (!K.shs.includes(K.cur)) K.cur = K.shs[0];
-    }
+    HARD.shs.forEach(s => { if (!nextShs.includes(s)) nextShs.push(s); });
+    K.shs = nextShs;
+    if (!K.shs.includes(K.cur)) K.cur = K.shs[0];
   }
 
   const getStore = () => {
     const r = K.db.toko?.[0] || [], c = K.cols.toko || [];
-    const g = k => { const i = c.indexOf(k); return i > -1 && r[i] !== undefined ? r[i] : (HARD.store?.[k] || ''); };
-    return { name: g('name'), sub: g('sub'), phone: g('phone'), bank: g('bank'), footer: g('footer') };
+    return Object.fromEntries(['name', 'sub', 'phone', 'bank', 'footer'].map(k => {
+      const i = c.indexOf(k);
+      return [k, (i > -1 && r[i] !== undefined) ? r[i] : (HARD.store[k] || '')];
+    }));
   };
 
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
-  const isSafeUrl = u => { const s = String(u || '').trim(); return /^https?:\/\//i.test(s) || /^data:(image|application|text)\/[a-zA-Z0-9.\-_+]+;base64,/i.test(s); };
-  const dom = {
-    h: $('h'), q: $('q'), msg: $('msg'), tools: $('tools'),
-    scanBox: $('scan-box'), scanVid: $('scan-vid'),
-    fCam: $('f-cam'), fImg: $('f-img'), fDoc: $('f-doc'), fImp: $('f-imp'),
-    sh: $('sh-sel'), st: $('st-sel'), act: $('act-sel'),
-    fb: $('box-form'), db: $('box-dash'), ls: $('list'), ft: $('ft'), tape: $('tape'), bn: $('box-nota')
-  };
-
-  /* ---------------- Helper Data ---------------- */
+  /* ---------------- Helper Ringkas ---------------- */
   const S2 = s => String(s || '').trim().toLowerCase();
-  const N = v => { if (v == null) return 0; const n = parseFloat(String(v).replace(/[^\d.-]/g, '')); return (!isFinite(n) || n < 0) ? 0 : n; };
+  const N = v => { const n = parseFloat(String(v ?? '').replace(/[^\d.-]/g, '')); return (!isFinite(n) || n < 0) ? 0 : n; };
+  const Z = v => parseFloat(String(v ?? '').replace(/[^\d.-]/g, '')) || 0;
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  const isSafeUrl = u => /^(https?:\/\/|data:(image|application|text)\/[a-zA-Z0-9.\-_+]+;base64,)/i.test(String(u || '').trim());
+
   const cols = (s = K.cur) => K.cols[s] || [];
   const cI = (s, k) => cols(s).indexOf(k);
   const cV = (r, s, k) => { const i = cI(s, k); return (r && i > -1 && r[i] !== undefined) ? String(r[i]) : ''; };
@@ -458,6 +351,7 @@
 
   const TRXM = { penjualan: { ch: 'produk_jual' }, pembelian: { ch: 'produk_beli' } };
   const isTrx = (s = K.cur) => Boolean(TRXM[s]);
+  const trxIdOf = (t, r) => cV(r, t, `id${t}`) || r?.[0] || '';
   const isOpenStatus = st => ['draft', 'revisi'].includes(S2(st));
   const childOf = s => TRXM[s]?.ch || null;
   const parentOf = s => s === 'produk_jual' ? 'penjualan' : (s === 'produk_beli' ? 'pembelian' : null);
@@ -470,7 +364,7 @@
   const genId = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + Math.random().toString(36).slice(2, 5).padEnd(3, '0'); };
   const fmtNum = n => N(n).toLocaleString('id-ID');
   const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  const msg = t => { dom.msg.innerHTML = ''; dom.msg.hidden = !t; if (t) dom.msg.textContent = t; };
+  const msg = t => { dom.msg.hidden = !t; dom.msg.textContent = t || ''; };
 
   const getTheme = () => L.theme || (W.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   const applyTheme = t => {
@@ -494,18 +388,14 @@
     return r ? (cV(r, 'kontak', 'nama') || kId) : kId;
   };
 
-  /* ---------------- Navigasi & Filter Tunggal ---------------- */
+  /* ---------------- Navigasi & Akses ---------------- */
   const setView = (v, idx = null) => {
-    if (dom.q && dom.q.value.trim() !== '') { dom.q.value = ''; K.page = 1; }
+    if (dom.q?.value.trim()) { dom.q.value = ''; K.page = 1; }
     if (K.v !== v && idx === null) K.prev = { v: K.v, cur: K.cur, slice: K.slice };
     K.v = v; K.idx = idx; K.conf = null;
   };
   const userRow = (u, role, pw) => cols('users').map(c => ({ user: u, role, password: pw }[c] ?? ''));
-  const getRole = () => {
-    if (!K.u) return 'user';
-    const u = K.db.users?.find(r => S2(r[0]) === S2(K.u));
-    return S2(cV(u, 'users', 'role') || 'user');
-  };
+  const getRole = () => K.u ? S2(cV(K.db.users?.find(r => S2(r[0]) === S2(K.u)), 'users', 'role') || 'user') : 'user';
   const isAdmin = () => getRole() === 'admin';
   const isUserVisible = (r, sh = K.cur) => {
     if (isAdmin() || sh === 'produk') return true;
@@ -513,16 +403,12 @@
     if (uCol !== -1) return S2(r[uCol]) === S2(K.u);
     const pSh = parentOf(sh);
     if (pSh) {
-      const fk = cV(r, sh, fkCol(sh)), pRow = K.db[pSh]?.find(p => S2(p[0]) === S2(fk));
+      const pRow = K.db[pSh]?.find(p => S2(trxIdOf(pSh, p)) === S2(cV(r, sh, fkCol(sh))));
       return pRow ? isUserVisible(pRow, pSh) : true;
     }
     return true;
   };
-  const getRoleRules = () => {
-    if (!K.u) return [];
-    const v = (K.db.roles?.find(r => S2(r[0]) === getRole())?.[2] || '').toLowerCase();
-    return v.split(',').map(S2).filter(Boolean);
-  };
+  const getRoleRules = () => K.u ? (K.db.roles?.find(r => S2(r[0]) === getRole())?.[2] || '').toLowerCase().split(',').map(S2).filter(Boolean) : [];
   const hasAccess = (k, s = K.cur) => {
     const key = S2(k);
     if (EXEMPT.includes(key) || key.startsWith('df-') || key.startsWith('ref-')) return true;
@@ -536,7 +422,6 @@
   const addFooter = (a, txt, sheet = K.cur, extra = '') => {
     if (hasAccess(a, sheet)) dom.ft.insertAdjacentHTML('beforeend', `<button data-a="${esc(a)}" ${extra}>${esc(txt)}</button> `);
   };
-
   const matchFilter = (u, d, meta, skipDate = false, qWords = []) => {
     const effU = isAdmin() ? K.df.u : (K.u || '');
     return (!effU || S2(u).includes(S2(effU))) &&
@@ -546,73 +431,59 @@
       (!qWords.length || qWords.every(w => `${u} ${d} ${meta}`.toLowerCase().includes(w)));
   };
 
-  /* ---------------- Stok & Master Harga Produk (Atomik Tunggal) ---------------- */
-  const Z = v => parseFloat(String(v ?? '').replace(/[^\d.-]/g, '')) || 0;
-  const findMasterProd = (r, sh, pm, pnm) => {
-    if (!r) return null;
-    const id = S2(cV(r, sh, 'idproduk'));
-    if (id && pm.has(id)) return pm.get(id);
-    const nm = S2(cV(r, sh, 'namaproduk'));
-    if (nm && pnm.has(nm)) return pnm.get(nm);
-    return null;
-  };
+  /* ---------------- Stok & Auto-Update Harga Master Produk ---------------- */
+  const findMasterProd = (r, sh, pm, pnm) => r ? (pm.get(S2(cV(r, sh, 'idproduk'))) || pnm.get(S2(cV(r, sh, 'namaproduk'))) || null) : null;
   const syncMasterProduk = (sh, oldRow, newRow) => {
     if (!STOCK_SHEETS.includes(sh)) return;
     const m = sh === 'produk_beli' ? 1 : -1;
     const si = cI('produk', 'stok'), hbI = cI('produk', 'hargabeli'), hjI = cI('produk', 'hargajual');
-    const pm = prodMap(), pnm = prodByNameMap();
-    const touched = new Map();
+    const pm = prodMap(), pnm = prodByNameMap(), touched = new Map();
 
-    const applyDelta = (r, s) => {
+    [{ r: oldRow, s: -m }, { r: newRow, s: m }].forEach(({ r, s }) => {
       const pRow = findMasterProd(r, sh, pm, pnm);
       if (pRow && si > -1) {
         pRow[si] = String(Z(pRow[si]) + N(cV(r, sh, 'qty')) * s);
         touched.set(prodIdOf(pRow), pRow);
       }
-    };
-
-    applyDelta(oldRow, -m);
-    applyDelta(newRow, m);
+    });
 
     if (newRow) {
       const pRow = findMasterProd(newRow, sh, pm, pnm);
       if (pRow) {
         const idCol = cI(sh, 'idproduk');
         if (idCol > -1 && !S2(newRow[idCol])) newRow[idCol] = cV(pRow, 'produk', 'idproduk') || pRow[0];
-        const newHb = cV(newRow, sh, 'hargabeli').trim();
-        const newHj = cV(newRow, sh, 'hargajual').trim();
-        let priceChanged = false;
-        if (hbI > -1 && newHb !== '' && N(newHb) !== N(pRow[hbI])) { pRow[hbI] = newHb; priceChanged = true; }
-        if (hjI > -1 && newHj !== '' && N(newHj) !== N(pRow[hjI])) { pRow[hjI] = newHj; priceChanged = true; }
-        if (priceChanged) touched.set(prodIdOf(pRow), pRow);
+        const hb = cV(newRow, sh, 'hargabeli').trim(), hj = cV(newRow, sh, 'hargajual').trim();
+        let changed = false;
+        if (hbI > -1 && hb !== '' && N(hb) !== N(pRow[hbI])) { pRow[hbI] = hb; changed = true; }
+        if (hjI > -1 && hj !== '' && N(hj) !== N(pRow[hjI])) { pRow[hjI] = hj; changed = true; }
+        if (changed) touched.set(prodIdOf(pRow), pRow);
       }
     }
-
     touched.forEach(pRow => save(pRow, 'produk', 1));
   };
 
   /* ---------------- Barcode Scanner ---------------- */
   const stopScan = () => {
-    if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
-    if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+    clearInterval(scanTimer); scanTimer = null;
+    scanStream?.getTracks().forEach(t => t.stop()); scanStream = null;
     if (dom.scanVid) dom.scanVid.srcObject = null;
     dom.scanBox.hidden = true;
   };
   const startScan = () => {
     if (!('BarcodeDetector' in W)) return msg('kamera tidak didukung');
-    const detector = new BarcodeDetector({ formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a'] });
+    const det = new BarcodeDetector({ formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a'] });
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(stream => {
       scanStream = stream; dom.scanVid.srcObject = stream; dom.scanVid.play(); dom.scanBox.hidden = false;
       scanTimer = setInterval(async () => {
         try {
-          const codes = await detector.detect(dom.scanVid);
-          if (codes?.length) { const val = codes[0].rawValue; stopScan(); dom.q.value = val; K.page = 1; render(); }
+          const codes = await det.detect(dom.scanVid);
+          if (codes?.length) { stopScan(); dom.q.value = codes[0].rawValue; K.page = 1; render(); }
         } catch {}
       }, 250);
     }).catch(() => msg('kamera tidak aktif'));
   };
 
-  /* ---------------- Transaksi ---------------- */
+  /* ---------------- Transaksi & Nota ---------------- */
   const calcItems = (t, id) => {
     const ch = childOf(t);
     if (!ch) return { raw: 0, disc: 0, cogs: 0, pot: 0, items: [] };
@@ -622,39 +493,33 @@
             b = N(cV(r, ch, 'hargabeli')), s = N(cV(r, ch, 'hargajual')), d = N(cV(r, ch, 'diskon')),
             dLine = d > 0 ? (d < p ? d * q : d) : 0, dU = q > 0 ? dLine / q : 0;
       a.raw += q * p; a.disc += dLine; a.cogs += q * b; a.pot += q * s;
-      a.items.push({ name: cV(r, ch, 'namaproduk') || 'item', id: cV(r, ch, 'idproduk'), q, p, b, s, dU, eff: Math.max(0, p - dU), tot: q * p - dLine });
+      a.items.push({ name: cV(r, ch, 'namaproduk') || 'item', id: cV(r, ch, 'idproduk'), q, p, dU, eff: Math.max(0, p - dU), tot: q * p - dLine });
       return a;
     }, { raw: 0, disc: 0, cogs: 0, pot: 0, items: [] });
   };
-  const trxNet = (t, r) => { const { raw, disc } = calcItems(t, r[0]); return Math.max(0, raw - disc - N(cV(r, t, 'diskon'))); };
-  const cicilMap = () => {
-    const m = {};
-    (K.db.cicil || []).forEach(c => { const id = S2(cV(c, 'cicil', 'idpenjualan')); m[id] = (m[id] || 0) + N(cV(c, 'cicil', 'jumlah')); });
-    return m;
-  };
-  const paidOf = (t, r, cm = null) => N(cV(r, t, 'bayar')) + (t === 'penjualan' ? ((cm || cicilMap())[S2(r[0])] || 0) : 0);
+  const trxNet = (t, r) => { const { raw, disc } = calcItems(t, trxIdOf(t, r)); return Math.max(0, raw - disc - N(cV(r, t, 'diskon'))); };
+  const cicilMap = () => (K.db.cicil || []).reduce((m, c) => {
+    const id = S2(cV(c, 'cicil', 'idpenjualan')); m[id] = (m[id] || 0) + N(cV(c, 'cicil', 'jumlah')); return m;
+  }, {});
+  const paidOf = (t, r, cm = null) => N(cV(r, t, 'bayar')) + (t === 'penjualan' ? ((cm || cicilMap())[S2(trxIdOf(t, r))] || 0) : 0);
   const statusFor = (net, paid, kId) => net <= 0 ? 'draft' : paid >= net ? 'lunas' : kId ? 'piutang' : 'draft';
 
   const calcContactDebt = kId => {
     if (!kId) return 0;
     const cm = cicilMap();
-    return (K.db.penjualan || []).reduce((sum, r) => {
-      if (S2(cV(r, 'penjualan', 'idkontak')) !== S2(kId) || !isUserVisible(r, 'penjualan')) return sum;
-      return sum + Math.max(0, trxNet('penjualan', r) - paidOf('penjualan', r, cm));
-    }, 0);
+    return (K.db.penjualan || []).reduce((sum, r) => (S2(cV(r, 'penjualan', 'idkontak')) === S2(kId) && isUserVisible(r, 'penjualan')) ? sum + Math.max(0, trxNet('penjualan', r) - paidOf('penjualan', r, cm)) : sum, 0);
   };
 
   const formatNota = id => {
-    const row = K.db.penjualan?.find(r => S2(r[0]) === S2(id));
+    const row = K.db.penjualan?.find(r => S2(trxIdOf('penjualan', r)) === S2(id));
     if (!row) return '';
     const val = k => cV(row, 'penjualan', k), paid = paidOf('penjualan', row), { raw, disc, items } = calcItems('penjualan', id),
           gTot = Math.max(0, raw - disc - N(val('diskon'))), diff = paid - gTot, WL = 32, store = getStore(),
-          pad = s => { const t = String(s || '').trim(); if (t.length >= WL) return t.slice(0, WL); const l = Math.floor((WL - t.length) / 2); return ' '.repeat(l) + t + ' '.repeat(WL - t.length - l); },
+          pad = s => { const t = String(s || '').trim().slice(0, WL); const l = Math.floor((WL - t.length) / 2); return ' '.repeat(l) + t + ' '.repeat(WL - t.length - l); },
           lr = (l, r) => l + ' '.repeat(Math.max(1, WL - l.length - String(r).length)) + r,
           bar = c => c.repeat(WL),
           lines = [pad(store.name), store.sub && pad(store.sub), store.phone && pad(store.phone), store.bank && pad(store.bank), bar('='),
                    lr(`${val('date') || today()} ${id}`, val('user') || K.u || 'admin'), bar('-')].filter(Boolean);
-
     if (!items.length) lines.push('(kosong)');
     items.forEach(it => {
       lines.push(it.name);
@@ -666,7 +531,6 @@
     if (N(val('diskon')) > 0) lines.push(lr('Diskon', '-' + fmtNum(val('diskon'))));
     lines.push(lr('Total', fmtNum(gTot)), lr('Bayar', fmtNum(paid)), lr(diff >= 0 ? 'Kembali' : 'Kurang', fmtNum(Math.abs(diff))), bar('-'));
     if (store.footer) lines.push(pad(store.footer));
-
     const kId = val('idkontak'), kDisp = resolveKontakName(kId);
     if (kDisp) lines.push(' ' + kDisp);
     if (val('catatan')) lines.push(' ' + val('catatan'));
@@ -676,26 +540,26 @@
   };
 
   const syncTrx = (t, forceStatus = false) => {
-    const id = K.parent?.id || (K.idx >= 0 ? K.db[t]?.[K.idx]?.[0] : null);
-    if (!id) return;
-    const r = K.db[t]?.find(x => S2(x[0]) === S2(id));
+    const id = K.parent?.id || (K.idx >= 0 ? trxIdOf(t, K.db[t]?.[K.idx]) : null);
+    const r = id && K.db[t]?.find(x => S2(trxIdOf(t, x)) === S2(id));
     if (!r) return;
     const sI = cI(t, 'status');
     if (sI > -1 && (forceStatus || r[sI] !== 'revisi')) r[sI] = statusFor(trxNet(t, r), paidOf(t, r), cV(r, t, 'idkontak'));
     persist(); save(r, t, 1);
   };
 
+  /* ---------------- Keranjang Terisolasi per User ---------------- */
   const getOpenTrx = t => {
     if (!t) return null;
     const rows = K.db[t] || [], u = S2(K.u || 'admin');
     if (K.parent?.type === t) {
-      const r = rows.find(x => S2(x[0]) === S2(K.parent.id));
+      const r = rows.find(x => S2(trxIdOf(t, x)) === S2(K.parent.id));
       if (r && isUserVisible(r, t) && (K.parent.open || (S2(cV(r, t, 'user')) === u && isOpenStatus(cV(r, t, 'status'))))) {
-        return { type: t, id: r[0], row: r };
+        return { type: t, id: trxIdOf(t, r), row: r };
       }
     }
     const r = rows.find(x => S2(cV(x, t, 'user')) === u && isOpenStatus(cV(x, t, 'status')));
-    return r ? { type: t, id: r[0], row: r } : null;
+    return r ? { type: t, id: trxIdOf(t, r), row: r } : null;
   };
   const hasDraftItems = t => {
     const ch = childOf(t), op = getOpenTrx(t);
@@ -703,9 +567,10 @@
   };
 
   const dropRows = (sh, pred) => {
-    const keep = [];
-    (K.db[sh] || []).forEach(r => { if (pred(r)) { syncMasterProduk(sh, r, null); save(r, sh, 0); } else keep.push(r); });
-    K.db[sh] = keep;
+    K.db[sh] = (K.db[sh] || []).filter(r => {
+      if (pred(r)) { syncMasterProduk(sh, r, null); save(r, sh, 0); return false; }
+      return true;
+    });
   };
   const dropTrxDeps = (t, id) => {
     const ch = childOf(t), fkI = ch ? cI(ch, fkCol(ch)) : -1;
@@ -713,14 +578,19 @@
     if (t === 'penjualan') dropRows('cicil', c => S2(cV(c, 'cicil', 'idpenjualan')) === S2(id));
   };
 
-  /* ---------------- Prefill & Referensi Universal Ringkas ---------------- */
-  const prefillProd = p => ({ idproduk: p[0], namaproduk: p[3], hargabeli: p[4], hargajual: p[5], qty: '1', diskon: '', catatan: '' });
+  /* ---------------- Prefill & Query Linear ---------------- */
+  const prefillProd = p => ({
+    idproduk: cV(p, 'produk', 'idproduk') || p[0] || '',
+    namaproduk: cV(p, 'produk', 'namaproduk') || '',
+    hargabeli: cV(p, 'produk', 'hargabeli') || '',
+    hargajual: cV(p, 'produk', 'hargajual') || '',
+    qty: '1', diskon: '', catatan: ''
+  });
   const openProdForm = p => {
     const isB = K.parent?.type === 'pembelian', pType = isB ? 'pembelian' : 'penjualan';
     K.parent = getOpenTrx(pType) || { type: pType, id: genId(), open: true };
     K.cur = isB ? 'produk_beli' : 'produk_jual';
-    K.prefill = prefillProd(p);
-    K.prodIdx = (K.db.produk || []).indexOf(p);
+    K.prefill = prefillProd(p); K.prodIdx = (K.db.produk || []).indexOf(p);
     setView('form', -1); render();
   };
   const prodTo = sheet => {
@@ -738,39 +608,34 @@
     const trg = REF_ALIASES[col] || (col.startsWith('id') ? col.slice(2) : col);
     return (trg && trg !== K.cur && K.shs.includes(trg)) ? trg : null;
   };
-  const hasRefMatch = (trg, val) => {
-    const v = S2(val);
-    return Boolean(v && (K.db[trg] || []).some(r => S2(r[0]) === v));
-  };
-  const refreshRefButtons = () => {
-    dom.ft.querySelectorAll('button[data-ref-col]').forEach(btn => {
-      const inp = fld(btn.dataset.refCol), trg = btn.dataset.a.slice(4);
-      btn.hidden = !hasRefMatch(trg, inp?.value);
-    });
-  };
+  const hasRefMatch = (trg, val) => Boolean(S2(val) && (K.db[trg] || []).some(r => S2(r[0]) === S2(val)));
+  const refreshRefButtons = () => dom.ft.querySelectorAll('button[data-ref-col]').forEach(btn => {
+    btn.hidden = !hasRefMatch(btn.dataset.a.slice(4), fld(btn.dataset.refCol)?.value);
+  });
 
   const queryRows = () => {
     const rows = K.db[K.cur] || [], q = S2(dom.q.value).split(/\s+/).filter(Boolean),
-          pType = parentOf(K.cur), op = pType ? getOpenTrx(pType) : null, res = [],
+          pType = parentOf(K.cur), op = pType ? getOpenTrx(pType) : null,
           cm = K.slice === 'piutang' ? cicilMap() : null, pm = prodMap(), km = kontakMap(),
-          uNow = S2(K.u || 'admin');
+          uNow = S2(K.u || 'admin'), adminMode = isAdmin(), res = [];
 
-    const sliceChecks = {
-      ready: r => K.cur !== 'produk' || (Z(cV(r, 'produk', 'stok')) > 0 && matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true)),
-      sisa_stok: r => K.cur !== 'produk' || matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true),
-      piutang: r => K.cur !== 'penjualan' || (paidOf('penjualan', r, cm) < trxNet('penjualan', r) && matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${cV(r, 'penjualan', 'idkontak')} ${resolveKontakName(cV(r, 'penjualan', 'idkontak'), km)} ${cV(r, 'penjualan', 'catatan')}`)),
-      saldo_filter: r => K.cur !== 'penjualan' || matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${cV(r, 'penjualan', 'idkontak')} ${resolveKontakName(cV(r, 'penjualan', 'idkontak'), km)} ${cV(r, 'penjualan', 'catatan')} ${calcItems('penjualan', r[0]).items.map(it => cV(pm.get(S2(it.id)), 'produk', 'kategori')).join(' ')}`),
-      profit: r => sliceChecks.saldo_filter(r),
-      total_penjualan: r => sliceChecks.saldo_filter(r),
-      total_pembelian: r => K.cur !== 'pembelian' || matchFilter(cV(r, 'pembelian', 'user'), cV(r, 'pembelian', 'date'), `${cV(r, 'pembelian', 'idkontak')} ${resolveKontakName(cV(r, 'pembelian', 'idkontak'), km)} ${cV(r, 'pembelian', 'catatan')}`),
-      kas_masuk: r => K.cur !== 'kas' || (N(cV(r, 'kas', 'masuk')) > 0 && matchFilter(cV(r, 'kas', 'user'), cV(r, 'kas', 'date'), `${cV(r, 'kas', 'kategori')} ${cV(r, 'kas', 'uraian')}`)),
-      kas_keluar: r => K.cur !== 'kas' || (N(cV(r, 'kas', 'keluar')) > 0 && matchFilter(cV(r, 'kas', 'user'), cV(r, 'kas', 'date'), `${cV(r, 'kas', 'kategori')} ${cV(r, 'kas', 'uraian')}`))
+    const passSlice = r => {
+      if (!K.slice) return true;
+      if (K.slice === 'ready' || K.slice === 'sisa_stok') {
+        if (K.cur !== 'produk') return true;
+        if (K.slice === 'ready' && Z(cV(r, 'produk', 'stok')) <= 0) return false;
+        return matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true);
+      }
+      if (K.slice === 'piutang') return K.cur !== 'penjualan' || (paidOf('penjualan', r, cm) < trxNet('penjualan', r) && matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${cV(r, 'penjualan', 'idkontak')} ${resolveKontakName(cV(r, 'penjualan', 'idkontak'), km)} ${cV(r, 'penjualan', 'catatan')}`));
+      if (['saldo_filter', 'profit', 'total_penjualan'].includes(K.slice)) return K.cur !== 'penjualan' || matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${cV(r, 'penjualan', 'idkontak')} ${resolveKontakName(cV(r, 'penjualan', 'idkontak'), km)} ${cV(r, 'penjualan', 'catatan')} ${calcItems('penjualan', trxIdOf('penjualan', r)).items.map(it => cV(pm.get(S2(it.id)), 'produk', 'kategori')).join(' ')}`);
+      if (K.slice === 'total_pembelian') return K.cur !== 'pembelian' || matchFilter(cV(r, 'pembelian', 'user'), cV(r, 'pembelian', 'date'), `${cV(r, 'pembelian', 'idkontak')} ${resolveKontakName(cV(r, 'pembelian', 'idkontak'), km)} ${cV(r, 'pembelian', 'catatan')}`);
+      if (K.slice === 'kas_masuk' || K.slice === 'kas_keluar') return K.cur !== 'kas' || (N(cV(r, 'kas', K.slice === 'kas_masuk' ? 'masuk' : 'keluar')) > 0 && matchFilter(cV(r, 'kas', 'user'), cV(r, 'kas', 'date'), `${cV(r, 'kas', 'kategori')} ${cV(r, 'kas', 'uraian')}`));
+      return true;
     };
 
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i] || [];
-      if (!isUserVisible(r, K.cur)) continue;
-      if (K.slice && sliceChecks[K.slice] && !sliceChecks[K.slice](r)) continue;
+      if (!isUserVisible(r, K.cur) || !passSlice(r)) continue;
       if (pType) {
         const fkVal = S2(cV(r, K.cur, fkCol(K.cur)));
         if (op) {
@@ -778,13 +643,16 @@
           const pUser = S2(cV(op.row, pType, 'user'));
           if (!K.parent?.open && pUser && pUser !== uNow) continue;
         } else {
-          // Jika user (termasuk admin) tidak punya keranjang aktif, tampilkan hanya item milik transaksi user itu sendiri
-          const pRow = K.db[pType]?.find(x => S2(x[0]) === fkVal);
-          if (!pRow || S2(cV(pRow, pType, 'user')) !== uNow) continue;
+          const pRow = K.db[pType]?.find(x => S2(trxIdOf(pType, x)) === fkVal);
+          if (!pRow) continue;
+          const pUser = S2(cV(pRow, pType, 'user')), pStatus = S2(cV(pRow, pType, 'status'));
+          if (adminMode) {
+            if (pStatus === 'draft' && pUser && pUser !== uNow) continue;
+          } else if (pUser !== uNow) continue;
         }
       }
-      const extraSearch = isTrx() ? ' ' + resolveKontakName(cV(r, K.cur, 'idkontak'), km) : '';
-      if (!q.length || q.every(w => (r.join(' ') + extraSearch).toLowerCase().includes(w))) res.push(i);
+      const extra = isTrx() ? ' ' + resolveKontakName(cV(r, K.cur, 'idkontak'), km) : '';
+      if (!q.length || q.every(w => (r.join(' ') + extra).toLowerCase().includes(w))) res.push(i);
     }
     if (K.sort > 0 && K.sort <= cols().length) {
       const ci = K.sort - 1;
@@ -793,7 +661,7 @@
     return res;
   };
 
-  /* ---------------- Render View ---------------- */
+  /* ---------------- Render Views ---------------- */
   const renderChrome = () => {
     const allowed = K.shs.filter(s => hasAccess(s));
     if (dom.sh.dataset.shs !== allowed.join(',')) {
@@ -830,8 +698,8 @@
     addFooter('df-today', 'hari ini'); addFooter('df-clear', 'clear filter');
 
     const qW = S2(dom.q.value).split(/\s+/).filter(Boolean), pm = prodMap(), km = kontakMap();
+    let mAll = 0, kAll = 0, mFil = 0, kFil = 0, jAll = 0, profFil = 0, jFil = 0, pAll = 0, pFil = 0, ecQtyFil = 0, bFil = 0, sStok = 0, rCount = 0, eMod = 0, eJual = 0;
 
-    let mAll = 0, kAll = 0, mFil = 0, kFil = 0;
     (K.db.kas || []).forEach(r => {
       if (!isUserVisible(r, 'kas')) return;
       const m = N(cV(r, 'kas', 'masuk')), k = N(cV(r, 'kas', 'keluar'));
@@ -847,24 +715,21 @@
       if (matchFilter(cV(c, 'cicil', 'user'), cV(c, 'cicil', 'date'), '', false, qW)) cFilMap[id] = (cFilMap[id] || 0) + jml;
     });
 
-    let jAll = 0, profFil = 0, jFil = 0, pAll = 0, pFil = 0;
     (K.db.penjualan || []).forEach(r => {
       if (!isUserVisible(r, 'penjualan')) return;
-      const pid = r[0], { raw, disc, cogs, items } = calcItems('penjualan', pid),
+      const pid = trxIdOf('penjualan', r), { raw, disc, cogs, items } = calcItems('penjualan', pid),
             net = Math.max(0, raw - disc - N(cV(r, 'penjualan', 'diskon'))), paid = N(cV(r, 'penjualan', 'bayar')),
             paidAll = paid + (cMap[S2(pid)] || 0), kId = cV(r, 'penjualan', 'idkontak');
       jAll += net;
       if (paidAll < net) pAll += net - paidAll;
-      const katExtra = `${kId} ${resolveKontakName(kId, km)} ${cV(r, 'penjualan', 'catatan')} ` +
-        items.map(i => cV(pm.get(S2(i.id)), 'produk', 'kategori')).join(' ');
-      if (matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), katExtra, false, qW)) {
+      const meta = `${kId} ${resolveKontakName(kId, km)} ${cV(r, 'penjualan', 'catatan')} ` + items.map(i => cV(pm.get(S2(i.id)), 'produk', 'kategori')).join(' ');
+      if (matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), meta, false, qW)) {
         const paidFil = paid + (cFilMap[S2(pid)] || 0);
         jFil += net; profFil += net - cogs;
         if (paidFil < net) pFil += net - paidFil;
       }
     });
 
-    let ecQtyFil = 0;
     (K.db.ecer || []).forEach(r => {
       if (!isUserVisible(r, 'ecer')) return;
       const q = N(cV(r, 'ecer', 'qty')), net = Math.max(0, q * N(cV(r, 'ecer', 'hargajual')) - N(cV(r, 'ecer', 'diskon')));
@@ -874,29 +739,21 @@
       }
     });
 
-    let bFil = 0;
     (K.db.pembelian || []).forEach(r => {
       if (!isUserVisible(r, 'pembelian')) return;
       const kId = cV(r, 'pembelian', 'idkontak');
       if (matchFilter(cV(r, 'pembelian', 'user'), cV(r, 'pembelian', 'date'), `${kId} ${resolveKontakName(kId, km)} ${cV(r, 'pembelian', 'catatan')}`, false, qW)) bFil += trxNet('pembelian', r);
     });
 
-    let sStok = 0, rCount = 0, eMod = 0, eJual = 0;
     (K.db.produk || []).forEach(r => {
       const s = Z(cV(r, 'produk', 'stok'));
-      const prodMeta = `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`;
-      if (matchFilter('', '', prodMeta, true, qW)) {
+      if (matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true, qW)) {
         sStok += N(s);
-        if (s > 0) {
-          rCount++;
-          eMod += s * N(cV(r, 'produk', 'hargabeli'));
-          eJual += s * N(cV(r, 'produk', 'hargajual'));
-        }
+        if (s > 0) { rCount++; eMod += s * N(cV(r, 'produk', 'hargabeli')); eJual += s * N(cV(r, 'produk', 'hargajual')); }
       }
     });
-    const sumQty = sh => (K.db[sh] || []).reduce((a, r) => a + (isUserVisible(r, sh) ? N(cV(r, sh, 'qty')) : 0), 0);
-    const stMasuk = sumQty('produk_beli'), stKeluar = sumQty('produk_jual') + ecQtyFil;
 
+    const sumQty = sh => (K.db[sh] || []).reduce((a, r) => a + (isUserVisible(r, sh) ? N(cV(r, sh, 'qty')) : 0), 0);
     [
       { l: 'saldo total', v: fmtNum(mAll + jAll - kAll - pAll), s: 'kas', slice: 'saldo_total', k: 'saldo_total' },
       { l: 'saldo filter', v: fmtNum(mFil + jFil - kFil - pFil), s: 'penjualan', slice: 'saldo_filter', k: 'saldo_filter' },
@@ -907,8 +764,8 @@
       { l: 'total penjualan', v: fmtNum(jFil), s: 'penjualan', slice: 'total_penjualan', k: 'total_penjualan' },
       { l: 'total pembelian', v: fmtNum(bFil), s: 'pembelian', slice: 'total_pembelian', k: 'total_pembelian' },
       { l: 'total piutang', v: fmtNum(pFil), s: 'penjualan', slice: 'piutang', k: 'total_piutang' },
-      { l: 'stok masuk', v: fmtNum(stMasuk), s: 'produk_beli', slice: 'stok_masuk', k: 'stok_masuk' },
-      { l: 'stok keluar', v: fmtNum(stKeluar), s: 'produk_jual', slice: 'stok_keluar', k: 'stok_keluar' },
+      { l: 'stok masuk', v: fmtNum(sumQty('produk_beli')), s: 'produk_beli', slice: 'stok_masuk', k: 'stok_masuk' },
+      { l: 'stok keluar', v: fmtNum(sumQty('produk_jual') + ecQtyFil), s: 'produk_jual', slice: 'stok_keluar', k: 'stok_keluar' },
       { l: 'sisa stok', v: fmtNum(sStok), s: 'produk', slice: 'sisa_stok', k: 'sisa_stok' },
       { l: 'produk ready stok', v: rCount + ' item', s: 'produk', slice: 'ready', k: 'ready' },
       { l: 'estimasi modal ready', v: fmtNum(eMod), s: 'produk', slice: 'ready', k: 'modal_ready' },
@@ -930,11 +787,7 @@
 
     if (K.cur === 'cms' && K.v === 'cms_detail') {
       const r = K.db.cms?.[K.idx] || [], g = k => cV(r, 'cms', k), foto = isSafeUrl(g('foto')) ? g('foto') : '', file = g('file');
-      dom.fb.innerHTML = `<b>${esc(g('judul') || '-')}</b>
-      <small>${esc(g('date'))} ${g('user') ? '| ' + esc(g('user')) : ''} ${g('kategori') ? '| ' + esc(g('kategori')) : ''} ${g('status') ? '| [' + esc(g('status')) + ']' : ''}</small>
-      <p>${esc(g('konten'))}</p>
-      ${foto ? `<img src="${esc(foto)}" alt="cms"><br>` : ''}
-      ${file ? `<button data-a="dl-cms-file">unduh lampiran</button><br>` : ''}`;
+      dom.fb.innerHTML = `<b>${esc(g('judul') || '-')}</b><small>${esc(g('date'))} ${g('user') ? '| ' + esc(g('user')) : ''} ${g('kategori') ? '| ' + esc(g('kategori')) : ''} ${g('status') ? '| [' + esc(g('status')) + ']' : ''}</small><p>${esc(g('konten'))}</p>${foto ? `<img src="${esc(foto)}" alt="cms"><br>` : ''}${file ? `<button data-a="dl-cms-file">unduh lampiran</button><br>` : ''}`;
       addFooter('back', '<');
       if (file) addFooter('dl-cms-file', 'unduh file');
       addFooter('edit-cms', 'edit'); renderNavFooters();
@@ -944,21 +797,19 @@
     const c = cols(), bypassAdd = K.idx === -1 && ['produk', 'kas', 'skema'].includes(K.cur),
           formCols = bypassAdd ? fvis() : fvis().filter(col => hasAccess(col, K.cur)),
           row = (K.idx !== null && K.idx >= 0) ? (K.db[K.cur][K.idx] || []) : [],
-          stVal = S2(cV(row, K.cur, 'status')),
-          isOpen = isTrx() && isOpenStatus(stVal),
-          isDraft = isTrx() && stVal === 'draft';
+          stVal = S2(cV(row, K.cur, 'status')), isOpen = isTrx() && isOpenStatus(stVal), isDraft = isTrx() && stVal === 'draft';
 
     if (isTrx() && K.idx !== null && K.idx >= 0) {
-      const { raw, disc, cogs, pot } = calcItems(K.cur, row[0]), net = Math.max(0, raw - disc - N(cV(row, K.cur, 'diskon'))), showProf = hasAccess('profit', K.cur);
-      msg(`total: ${fmtNum(net)}${showProf ? ` | profit: ${fmtNum(K.cur === 'penjualan' ? (net - cogs) : (pot - net))}` : ''}`);
+      const { raw, disc, cogs, pot } = calcItems(K.cur, trxIdOf(K.cur, row)), net = Math.max(0, raw - disc - N(cV(row, K.cur, 'diskon')));
+      msg(`total: ${fmtNum(net)}${hasAccess('profit', K.cur) ? ` | profit: ${fmtNum(K.cur === 'penjualan' ? (net - cogs) : (pot - net))}` : ''}`);
     } else msg();
 
-    const restoredForm = (K.ret && K.ret.cur === K.cur && K.ret.idx === K.idx) ? K.ret.form : null;
-    if (restoredForm) K.ret = null;
+    const restored = (K.ret && K.ret.cur === K.cur && K.ret.idx === K.idx) ? K.ret.form : null;
+    if (restored) K.ret = null;
 
     formCols.forEach(col => {
       let val = (K.idx === -1 && c.indexOf(col) === 0 && K.cur !== 'skema') ? genId() : (row[c.indexOf(col)] ?? '');
-      if (restoredForm && restoredForm[col] != null) val = restoredForm[col];
+      if (restored?.[col] != null) val = restored[col];
       else if (K.idx === -1 && K.prefill?.[col] != null) val = K.prefill[col];
       else if (K.idx === -1 && !val && /date|tanggal/i.test(col)) val = today();
       else if (K.idx === -1 && !val && col === 'user') val = K.u || 'admin';
@@ -971,9 +822,7 @@
     if (K.idx === -1 && getRoleRules().includes('wajiblokasi')) {
       const loc = fldBy(GEO_RE);
       if (loc && !loc.value && navigator.geolocation)
-        navigator.geolocation.getCurrentPosition(
-          p => { if (!loc.value) loc.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; },
-          () => { loc.value = 'here()'; }, { timeout: 4000 });
+        navigator.geolocation.getCurrentPosition(p => { if (!loc.value) loc.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => { loc.value = 'here()'; }, { timeout: 4000 });
     }
 
     addFooter('back', '<'); addFooter('save-row', 'save');
@@ -981,21 +830,15 @@
 
     formCols.forEach(col => {
       const trg = resolveRef(col, c.indexOf(col));
-      if (trg && hasAccess(trg)) {
-        const val = fld(col)?.value || '';
-        addFooter(`ref-${trg}`, `ref ${trg}`, K.cur, `data-ref-col="${esc(col)}"${hasRefMatch(trg, val) ? '' : ' hidden'}`);
-      }
+      if (trg && hasAccess(trg)) addFooter(`ref-${trg}`, `ref ${trg}`, K.cur, `data-ref-col="${esc(col)}"${hasRefMatch(trg, fld(col)?.value) ? '' : ' hidden'}`);
     });
 
     if (K.cur === 'kontak' && K.idx !== null && K.idx >= 0) {
       const kId = S2(cV(row, 'kontak', 'idkontak') || row[0]);
-      if (kId) {
-        ['penjualan', 'pembelian'].forEach(tSh => {
-          if (hasAccess(tSh) && (K.db[tSh] || []).some(tr => isUserVisible(tr, tSh) && S2(cV(tr, tSh, 'idkontak')) === kId)) {
-            addFooter(`ref-kontak-trx-${tSh}`, `ref ${tSh}`, K.cur, `data-kid="${esc(cV(row, 'kontak', 'idkontak') || row[0])}"`);
-          }
-        });
-      }
+      if (kId) ['penjualan', 'pembelian'].forEach(tSh => {
+        if (hasAccess(tSh) && (K.db[tSh] || []).some(tr => isUserVisible(tr, tSh) && S2(cV(tr, tSh, 'idkontak')) === kId))
+          addFooter(`ref-kontak-trx-${tSh}`, `ref ${tSh}`, K.cur, `data-kid="${esc(cV(row, 'kontak', 'idkontak') || row[0])}"`);
+      });
     }
 
     if (formCols.some(k => /foto/i.test(k))) { addFooter('cam', 'kamera'); addFooter('pic', 'file foto'); }
@@ -1008,7 +851,7 @@
     if (K.cur === 'produk' && K.idx !== null && K.idx >= 0) { addFooter('jual-prod', 'jual'); addFooter('beli-prod', 'beli'); addFooter('ecer-prod', 'ecer'); }
     if (STOCK_SHEETS.includes(K.cur) && row.length) {
       const lk = cV(row, K.cur, 'idproduk');
-      if (lk) { const pi = (K.db.produk || []).findIndex(p => S2(cV(p, 'produk', 'idproduk') || p[0]) === S2(lk)); if (pi !== -1) K.prodIdx = pi; }
+      if (lk) { const pi = (K.db.produk || []).findIndex(p => prodIdOf(p) === S2(lk)); if (pi !== -1) K.prodIdx = pi; }
     }
     if (K.prodIdx !== null) addFooter('edit-prod', 'edit produk');
     if (isTrx() && K.idx !== null && K.idx >= 0) {
@@ -1042,7 +885,7 @@
         el.contentEditable = 'plaintext-only'; if (!el.isContentEditable) el.contentEditable = 'true';
         el.textContent = r.join('|');
       } else {
-        if (K.grid && imgI !== -1 && isSafeUrl(r[imgI])) { addThumb(el, r[imgI], 'prod'); }
+        if (K.grid && imgI !== -1 && isSafeUrl(r[imgI])) addThumb(el, r[imgI], 'prod');
         if (cmsFotoI !== -1 && isSafeUrl(r[cmsFotoI])) { addThumb(el, r[cmsFotoI], 'cms'); el.appendChild(document.createTextNode(' ')); }
         el.appendChild(document.createTextNode(eff.map(i => {
           const val = r[i];
@@ -1086,16 +929,11 @@
     } else if (th) th.remove();
   };
 
-  const persist = (immediate = false) => {
-    const flush = () => {
-      try {
-        L.setItem('apex', JSON.stringify({ cur: K.cur, u: K.u, shs: K.shs, cols: K.cols, vis: K.vis, fvis: K.fvis, parent: K.parent, grid: K.grid, df: K.df }));
-        idbPut(K.db, 'apex_matrix');
-      } catch {}
-    };
-    clearTimeout(persistDebounce);
-    if (immediate) flush();
-    else persistDebounce = setTimeout(flush, 100);
+  const persist = () => {
+    try {
+      L.setItem('apex', JSON.stringify({ cur: K.cur, u: K.u, shs: K.shs, cols: K.cols, vis: K.vis, fvis: K.fvis, parent: K.parent, grid: K.grid, df: K.df }));
+      idbPut(K.db, 'apex_matrix');
+    } catch {}
   };
 
   const render = () => {
@@ -1115,12 +953,7 @@
     dom.bn.hidden = m !== 'nota';
     dom.ls.hidden = m !== 'list' && m !== 'edit';
     renderChrome();
-    if (m === 'menu') {
-      addFooter('back', '<');
-      addFooter('theme', getTheme() === 'dark' ? 'light mode' : 'dark mode');
-      addFooter('reset-db', 'reset db');
-      addFooter('logout', 'logout');
-    }
+    if (m === 'menu') { addFooter('back', '<'); addFooter('theme', getTheme() === 'dark' ? 'light mode' : 'dark mode'); addFooter('reset-db', 'reset db'); addFooter('logout', 'logout'); }
     else if (m === 'dash') renderDash();
     else if (m === 'nota') renderNota();
     else if (m === 'form') renderForm();
@@ -1141,8 +974,7 @@
       if (f) { const pw = cV(f, 'users', 'password'); if (pw && pw !== p) return msg('password salah'); K.u = L.u = f[0]; }
       else if (!K.db.users?.length && u === 'admin') { const adm = userRow('admin', 'admin', 'admin'); K.db.users = [adm]; save(adm, 'users', 2); K.u = L.u = 'admin'; }
       else return msg('user tidak terdaftar');
-      K.parent = K.ret = K.prev = null;
-      persist(true); syn(true); setView('dash', null); msg(); render();
+      K.parent = K.ret = K.prev = null; persist(); syn(true); setView('dash', null); msg(); render();
     },
     reg: () => {
       const u = S2(dom.fb.querySelector('[data-f="user"]')?.value || ''), p = (dom.fb.querySelector('[data-f="password"]')?.value || '').trim();
@@ -1150,34 +982,19 @@
       if (K.db.users?.some(r => S2(r[0]) === u)) return msg('user sudah ada');
       const row = userRow(u, 'user', p);
       (K.db.users = K.db.users || []).push(row);
-      K.u = L.u = u; K.parent = K.ret = K.prev = null;
-      persist(true); save(row, 'users', 2); setView('dash', null); msg(); render();
+      K.u = L.u = u; K.parent = K.ret = K.prev = null; persist(); save(row, 'users', 2); setView('dash', null); msg(); render();
     },
     bypass: () => {
       K.db.users = K.db.users || [];
-      if (!K.db.users.find(r => S2(r[0]) === 'admin')) {
-        const adm = userRow('admin', 'admin', 'admin');
-        K.db.users.unshift(adm); save(adm, 'users', 2);
-      }
-      K.u = L.u = 'admin'; K.parent = K.ret = K.prev = null;
-      persist(true); syn(true); setView('dash', null); msg(); render();
+      if (!K.db.users.find(r => S2(r[0]) === 'admin')) { const adm = userRow('admin', 'admin', 'admin'); K.db.users.unshift(adm); save(adm, 'users', 2); }
+      K.u = L.u = 'admin'; K.parent = K.ret = K.prev = null; persist(); syn(true); setView('dash', null); msg(); render();
     },
     back: () => {
-      stopScan();
-      K.prefill = K.prodIdx = K.conf = null;
-      if (K.ret) {
-        K.cur = K.ret.cur; K.parent = K.ret.parent;
-        setView('form', K.ret.idx);
-        return render();
-      }
+      stopScan(); K.prefill = K.prodIdx = K.conf = null;
+      if (K.ret) { K.cur = K.ret.cur; K.parent = K.ret.parent; setView('form', K.ret.idx); return render(); }
       if (K.v === 'menu') { dom.q.value = ''; setView('dash', null); return render(); }
       if (K.v === 'cms_detail' || K.idx !== null) { setView('list', null); return render(); }
-      if (K.prev && K.prev.v !== K.v) {
-        const p = K.prev; K.prev = null;
-        K.cur = p.cur; K.slice = p.slice || '';
-        setView(p.v, null);
-        return render();
-      }
+      if (K.prev && K.prev.v !== K.v) { const p = K.prev; K.prev = null; K.cur = p.cur; K.slice = p.slice || ''; setView(p.v, null); return render(); }
       if (K.v !== 'dash') { K.slice = ''; setView('dash', null); render(); }
     },
     menu: () => { K.v = K.v === 'menu' ? 'dash' : 'menu'; dom.q.value = ''; render(); },
@@ -1193,27 +1010,23 @@
     'v-beli': () => { const op = getOpenTrx('pembelian'); if (op) K.parent = { type: 'pembelian', id: op.id, open: true }; K.cur = 'produk_beli'; K.grid = false; K.slice = ''; K.ret = null; setView('list', null); render(); },
     'v-selesai': () => {
       if (!K.parent) return;
-      const fi = (K.db[K.parent.type] || []).findIndex(r => S2(r[0]) === S2(K.parent.id));
+      const fi = (K.db[K.parent.type] || []).findIndex(r => S2(trxIdOf(K.parent.type, r)) === S2(K.parent.id));
       K.cur = K.parent.type; setView('form', fi !== -1 ? fi : null); render();
     },
     'clear-items': () => {
       if (K.conf !== 'clear-items') { K.conf = 'clear-items'; render(); return; }
       if (!K.parent) return;
       const { type, id } = K.parent;
-      dropTrxDeps(type, id);
-      dropRows(type, r => S2(r[0]) === S2(id));
-      K.parent = K.conf = null; persist(true); syn(true); K.cur = 'produk'; setView('list', null); render();
+      dropTrxDeps(type, id); dropRows(type, r => S2(trxIdOf(type, r)) === S2(id));
+      K.parent = K.conf = null; persist(); syn(true); K.cur = 'produk'; setView('list', null); render();
     },
     'add-cart-item': () => { K.prefill = null; K.prodIdx = null; setView('form', -1); render(); },
     'edit-cms': () => { setView('form', K.idx); render(); },
     'dl-cms-file': () => {
       const r = K.db.cms?.[K.idx] || [], data = cV(r, 'cms', 'file'), judul = cV(r, 'cms', 'judul') || 'berkas';
       if (!data) return;
-      if (/^https?:\/\//i.test(data)) { W.open(data, '_blank', 'noopener,noreferrer'); return; }
-      if (/^data:/i.test(data)) {
-        const a = document.createElement('a'); a.href = data; a.download = judul.replace(/\s+/g, '_');
-        document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 400); return;
-      }
+      if (/^https?:\/\//i.test(data)) return W.open(data, '_blank', 'noopener,noreferrer');
+      if (/^data:/i.test(data)) { const a = document.createElement('a'); a.href = data; a.download = judul.replace(/\s+/g, '_'); document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 400); return; }
       dl(data, `${judul}.txt`);
     },
     nav: b => { K.cur = b.dataset.s; setView('list', null); K.page = 1; K.slice = b.dataset.slice || ''; render(); },
@@ -1230,7 +1043,25 @@
         const c = cols(), oldRow = (K.idx >= 0 && K.db[K.cur][K.idx]) ? K.db[K.cur][K.idx].slice() : null,
               row = oldRow ? oldRow.slice(0, c.length) : new Array(c.length).fill('');
         while (row.length < c.length) row.push('');
+        if (K.idx === -1 && K.prefill) {
+          Object.entries(K.prefill).forEach(([k, v]) => {
+            const ci = c.indexOf(k);
+            if (ci !== -1 && v != null) row[ci] = String(v).trim();
+          });
+        }
         flds().forEach(inp => { const ci = c.indexOf(inp.dataset.col); if (ci !== -1) row[ci] = inp.value.trim(); });
+
+        if (STOCK_SHEETS.includes(K.cur)) {
+          const pRow = findMasterProd(row, K.cur, prodMap(), prodByNameMap());
+          if (pRow) {
+            const idI = cI(K.cur, 'idproduk'), nmI = cI(K.cur, 'namaproduk'), hbI = cI(K.cur, 'hargabeli'), hjI = cI(K.cur, 'hargajual');
+            const prodSwitched = oldRow && S2(cV(oldRow, K.cur, 'idproduk')) !== prodIdOf(pRow);
+            if (idI > -1 && !row[idI]) row[idI] = cV(pRow, 'produk', 'idproduk') || pRow[0] || '';
+            if (nmI > -1 && (!row[nmI] || (prodSwitched && !fld('namaproduk')))) row[nmI] = cV(pRow, 'produk', 'namaproduk') || '';
+            if (hbI > -1 && (!row[hbI] || (prodSwitched && !fld('hargabeli')))) row[hbI] = cV(pRow, 'produk', 'hargabeli') || '';
+            if (hjI > -1 && (!row[hjI] || (prodSwitched && !fld('hargajual')))) row[hjI] = cV(pRow, 'produk', 'hargajual') || '';
+          }
+        }
 
         if (K.cur === 'skema') {
           row[0] = S2(row[0]);
@@ -1240,19 +1071,16 @@
           row[2] = String(row[2] || '').split(',').map(S2).filter(Boolean).join(',');
           row[3] = String(row[3] || '').split(',').map(S2).filter(Boolean).join(',');
         }
-
         if (row[0] && (K.db[K.cur] || []).some((r, i) => i !== K.idx && S2(r[0]) === S2(row[0]))) return msg('id sudah ada');
 
         const rules = getRoleRules(), valOf = k => row[c.indexOf(k)] || '';
         const geoCol = c.find(k => GEO_RE.test(k)), fotoCol = c.find(k => /foto/i.test(k));
         if (rules.includes('wajiblokasi') && geoCol && !valOf(geoCol)) return msg('lokasi kosong');
-        if (rules.includes('wajibfoto') && fotoCol) { const fv = valOf(fotoCol); if (!fv || !isSafeUrl(fv)) return msg('foto kosong'); }
+        if (rules.includes('wajibfoto') && fotoCol && (!valOf(fotoCol) || !isSafeUrl(valOf(fotoCol)))) return msg('foto kosong');
         if (rules.includes('wajibkontak') && c.includes('idkontak') && !valOf('idkontak')) return msg('idkontak kosong');
-        if (rules.includes('wajibabsen') && ['penjualan', 'kas', 'pembelian'].includes(K.cur) &&
-           !(K.db.absen || []).some(a => S2(cV(a, 'absen', 'user')) === S2(K.u || 'admin') && cV(a, 'absen', 'date') === today())) return msg('absen dulu');
+        if (rules.includes('wajibabsen') && ['penjualan', 'kas', 'pembelian'].includes(K.cur) && !(K.db.absen || []).some(a => S2(cV(a, 'absen', 'user')) === S2(K.u || 'admin') && cV(a, 'absen', 'date') === today())) return msg('absen dulu');
         if (rules.includes('wajibstok') && ['produk_jual', 'ecer'].includes(K.cur)) {
-          const pRow = prodMap().get(S2(valOf('idproduk'))),
-                same = oldRow && S2(cV(oldRow, K.cur, 'idproduk')) === S2(valOf('idproduk')),
+          const pRow = prodMap().get(S2(valOf('idproduk'))), same = oldRow && S2(cV(oldRow, K.cur, 'idproduk')) === S2(valOf('idproduk')),
                 need = N(valOf('qty')) - (same ? N(cV(oldRow, K.cur, 'qty')) : 0);
           if (pRow && need > Z(cV(pRow, 'produk', 'stok'))) return msg('stok kurang');
         }
@@ -1260,9 +1088,10 @@
         const pType = parentOf(K.cur);
         if (pType && K.idx === -1) {
           if (!K.parent || K.parent.type !== pType) K.parent = getOpenTrx(pType) || { type: pType, id: genId(), open: true };
-          if (!(K.db[pType] || []).some(r => S2(r[0]) === S2(K.parent.id))) {
+          if (!(K.db[pType] || []).some(r => S2(trxIdOf(pType, r)) === S2(K.parent.id))) {
             const pCols = cols(pType), newP = new Array(pCols.length).fill('');
-            newP[0] = K.parent.id;
+            const pkIdx = Math.max(0, pCols.indexOf(`id${pType}`));
+            newP[pkIdx] = K.parent.id;
             pCols.forEach((col, i) => {
               if (/date|tanggal/i.test(col)) newP[i] = today();
               else if (col === 'user') newP[i] = K.u || 'admin';
@@ -1276,8 +1105,7 @@
         if (!row[0]) row[0] = genId();
 
         if (isTrx()) {
-          const sI = cI(K.cur, 'status');
-          const net = trxNet(K.cur, row), paid = paidOf(K.cur, row), kId = cV(row, K.cur, 'idkontak');
+          const sI = cI(K.cur, 'status'), net = trxNet(K.cur, row), paid = paidOf(K.cur, row), kId = cV(row, K.cur, 'idkontak');
           if (sI > -1) row[sI] = statusFor(net, paid, kId);
           if ((row[sI] === 'piutang' || (net > 0 && paid < net)) && cI(K.cur, 'idkontak') !== -1 && !kId) return msg('piutang butuh kontak');
         }
@@ -1293,20 +1121,17 @@
           save(row, K.cur, 1);
         }
         if (K.cur === 'skema') {
-          if (oldRow && oldRow[0] && oldRow[0] !== row[0] && !HARD.shs.includes(S2(oldRow[0]))) {
-            save([S2(oldRow[0])], S2(oldRow[0]), -1);
-          }
-          applySchemaTable();
-          syn(true);
+          if (oldRow?.[0] && oldRow[0] !== row[0] && !HARD.shs.includes(S2(oldRow[0]))) save([S2(oldRow[0])], S2(oldRow[0]), -1);
+          applySchemaTable(); syn(true);
         }
-        persist(true);
+        persist();
         if (pType && K.parent?.id) syncTrx(pType, false);
-        if (isTrx() && row[0]) { syncTrx(K.cur, true); if (!isOpenStatus(cV(row, K.cur, 'status'))) K.parent = null; }
+        const savedTrxId = isTrx() ? trxIdOf(K.cur, row) : null, wasPenjualan = K.cur === 'penjualan';
+        if (isTrx() && savedTrxId) { syncTrx(K.cur, true); if (!isOpenStatus(cV(row, K.cur, 'status'))) K.parent = null; }
         if (K.cur === 'cicil' && cV(row, 'cicil', 'idpenjualan')) syncTrx('penjualan', true);
 
-        const justTrxId = isTrx() ? row[0] : null, wasPenjualan = K.cur === 'penjualan';
         K.prefill = K.conf = K.prodIdx = K.ret = null;
-        if (wasPenjualan && justTrxId) { K.receiptRaw = formatNota(justTrxId); setView('nota', null); }
+        if (wasPenjualan && savedTrxId) { K.receiptRaw = formatNota(savedTrxId); setView('nota', null); }
         else if (pType) { K.cur = 'produk'; K.grid = true; setView('list', null); }
         else setView('list', null);
         render();
@@ -1315,18 +1140,17 @@
 
     'del-row': () => {
       if (K.conf !== 'del') { K.conf = 'del'; render(); return; }
-      if (K.idx == null || K.idx < 0) return;
-      const target = K.db[K.cur][K.idx];
+      const target = K.idx >= 0 ? K.db[K.cur][K.idx] : null;
       if (!target) return;
-      const id = target[0], pType = parentOf(K.cur), pid = pType ? (target[cI(K.cur, fkCol(K.cur))] || K.parent?.id) : null,
+      const id = isTrx() ? trxIdOf(K.cur, target) : target[0],
+            pType = parentOf(K.cur), pid = pType ? (target[cI(K.cur, fkCol(K.cur))] || K.parent?.id) : null,
             delCicilJual = K.cur === 'cicil' ? cV(target, 'cicil', 'idpenjualan') : null;
       K.idx = null;
       dropRows(K.cur, r => r === target);
       if (K.cur === 'skema') {
         const droppedSh = S2(id);
         if (droppedSh && !HARD.shs.includes(droppedSh)) save([droppedSh], droppedSh, -1);
-        applySchemaTable();
-        syn(true);
+        applySchemaTable(); syn(true);
       }
       if (isTrx() && id) dropTrxDeps(K.cur, id);
       if (K.cur === 'kontak' && id) {
@@ -1343,23 +1167,16 @@
     'dup-row': () => {
       if (!(K.idx >= 0)) return;
       const old = (K.db[K.cur][K.idx] || []).slice(), c = cols();
-      K.prefill = {}; c.forEach((col, i) => { K.prefill[col] = old[i] || ''; });
-      K.prefill[c[0]] = genId();
+      K.prefill = Object.fromEntries(c.map((col, i) => [col, i === 0 ? genId() : (old[i] || '')]));
       setView('form', -1); render();
     },
-
     'trx-pick-kontak': () => {
       if (!K.shs.includes('kontak')) return;
       K.ret = { cur: K.cur, idx: K.idx, parent: K.parent, form: formState(), col: 'idkontak' };
-      K.cur = 'kontak';
-      setView('list', null);
-      dom.q.value = '';
-      K.page = 1;
-      render();
+      K.cur = 'kontak'; setView('list', null); dom.q.value = ''; K.page = 1; render();
     },
     'pay-pas': () => {
-      const r = (K.idx !== null && K.idx >= 0) ? K.db[K.cur][K.idx] : null,
-            pid = r ? r[0] : (fld(cols()[0])?.value || ''), bayar = fld('bayar');
+      const r = K.idx >= 0 ? K.db[K.cur][K.idx] : null, pid = r ? trxIdOf(K.cur, r) : (fld(cols()[0])?.value || ''), bayar = fld('bayar');
       if (bayar && pid) {
         const dVal = N(fld('diskon')?.value || (r ? cV(r, K.cur, 'diskon') : 0)), { raw, disc } = calcItems(K.cur, pid);
         bayar.value = String(Math.max(0, raw - disc - dVal));
@@ -1367,7 +1184,7 @@
     },
     revisi: () => {
       if (!(K.idx >= 0)) return;
-      const r = K.db[K.cur][K.idx], pid = r?.[0];
+      const r = K.db[K.cur][K.idx], pid = trxIdOf(K.cur, r);
       if (!pid) return;
       K.parent = { type: K.cur, id: pid, open: true };
       const sI = cI(K.cur, 'status');
@@ -1376,7 +1193,7 @@
     },
     cicil: () => {
       if (!(K.idx >= 0)) return;
-      const r = K.db[K.cur][K.idx], pid = r?.[0];
+      const r = K.db[K.cur][K.idx], pid = trxIdOf('penjualan', r);
       if (!pid) return;
       if (!K.shs.includes('cicil')) K.shs.push('cicil');
       const remDebt = Math.max(0, trxNet('penjualan', r) - paidOf('penjualan', r));
@@ -1386,13 +1203,12 @@
     },
     'trx-rincian': () => {
       if (!(K.idx >= 0)) return;
-      const pid = K.db[K.cur][K.idx]?.[0];
+      const pid = trxIdOf(K.cur, K.db[K.cur][K.idx]);
       if (pid) { K.parent = { type: K.cur, id: pid, open: true }; K.cur = childOf(K.cur); setView('list', null); render(); }
     },
     'show-nota': () => {
-      const pid = (K.cur === 'penjualan' && K.idx >= 0) ? K.db.penjualan[K.idx]?.[0] : (K.parent?.type === 'penjualan' ? K.parent.id : K.db.penjualan?.[0]?.[0]);
-      if (!pid) return;
-      K.receiptRaw = formatNota(pid); setView('nota', null); render();
+      const pid = (K.cur === 'penjualan' && K.idx >= 0) ? trxIdOf('penjualan', K.db.penjualan[K.idx]) : (K.parent?.type === 'penjualan' ? K.parent.id : trxIdOf('penjualan', K.db.penjualan?.[0]));
+      if (pid) { K.receiptRaw = formatNota(pid); setView('nota', null); render(); }
     },
     rawbt: () => {
       if (!K.receiptRaw) return;
@@ -1401,36 +1217,27 @@
     },
     jpg: () => {
       if (!K.receiptRaw) return;
-      const lines = K.receiptRaw.split(/\r?\n/), lh = 18, font = '13px monospace',
-            mctx = document.createElement('canvas').getContext('2d');
+      const lines = K.receiptRaw.split(/\r?\n/), lh = 18, font = '13px monospace', mctx = document.createElement('canvas').getContext('2d');
       mctx.font = font;
-      const w = Math.ceil(Math.max(0, ...lines.map(l => mctx.measureText(l).width))) || 280, h = lines.length * lh + 4,
-            can = document.createElement('canvas');
+      const w = Math.ceil(Math.max(0, ...lines.map(l => mctx.measureText(l).width))) || 280, h = lines.length * lh + 4, can = document.createElement('canvas');
       can.width = w; can.height = h;
       const ctx = can.getContext('2d');
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#000'; ctx.font = font; ctx.textBaseline = 'top';
       lines.forEach((l, i) => ctx.fillText(l, 0, i * lh + 2));
       can.toBlob(blob => {
         if (!blob) return;
-        const dlPng = () => {
-          const u = URL.createObjectURL(blob), a = document.createElement('a');
-          a.href = u; a.download = `nota_${Date.now()}.png`; document.body.appendChild(a); a.click();
-          setTimeout(() => { a.remove(); URL.revokeObjectURL(u); }, 500);
-        };
-        try {
-          if (navigator.clipboard && W.ClipboardItem) navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).catch(dlPng);
-          else dlPng();
-        } catch { dlPng(); }
+        const dlPng = () => { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = `nota_${Date.now()}.png`; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(u); }, 500); };
+        try { navigator.clipboard && W.ClipboardItem ? navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).catch(dlPng) : dlPng(); } catch { dlPng(); }
       }, 'image/png');
     },
     print: () => W.print(),
 
     'reset-db': async () => {
       if (K.conf !== 'reset-db') { K.conf = 'reset-db'; return msg('reset? klik lagi'); }
-      K.conf = null;
-      idbClearStore('kv'); idbClearStore('mut');
+      K.conf = null; idbClear('kv'); idbClear('mut');
       K.shs.forEach(s => { K.db[s] = []; });
-      L.vs = '[]'; persist(true); render();
+      applySchemaTable();
+      L.vs = '[]'; persist(); render();
       await syn(true); render();
     },
     'save-bulk': () => {
@@ -1440,17 +1247,16 @@
         if (isNaN(idx) || !K.db[K.cur][idx]) return;
         const p = div.textContent.split('|').map(s => s.trim());
         while (p.length < n) p.push('');
-        const row = p.slice(0, n);
-        K.db[K.cur][idx] = row; save(row, K.cur, 1);
+        K.db[K.cur][idx] = p.slice(0, n); save(K.db[K.cur][idx], K.cur, 1);
       });
       if (K.cur === 'skema') applySchemaTable();
-      persist(true); syn(true); setView('list', null); render();
+      persist(); syn(true); setView('list', null); render();
     },
 
     grid: () => { K.grid = !K.grid; render(); },
     dir: () => { K.dir = -K.dir; K.page = 1; render(); },
     more: () => { K.page++; render(); },
-    logout: () => { K.u = L.u = ''; K.parent = K.ret = K.prev = null; K.slice = ''; persist(true); render(); },
+    logout: () => { K.u = L.u = ''; K.parent = K.ret = K.prev = null; K.slice = ''; persist(); render(); },
     cam: () => dom.fCam.click(),
     pic: () => dom.fImg.click(),
     'doc-upload': () => dom.fDoc.click(),
@@ -1466,10 +1272,7 @@
     },
     gps: () => {
       const trg = fldBy(GEO_RE);
-      if (!trg || !navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition(
-        p => { trg.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; },
-        () => msg('gps err'), { enableHighAccuracy: true, timeout: 5000 });
+      if (trg && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { trg.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => msg('gps err'), { enableHighAccuracy: true, timeout: 5000 });
     },
     'sh-sel': el => { K.cur = el.value; K.parent = K.prefill = K.prodIdx = K.ret = null; setView('list', null); K.page = 1; K.slice = ''; render(); },
     'st-sel': el => { K.sort = parseInt(el.value, 10) || 0; K.page = 1; render(); },
@@ -1477,38 +1280,29 @@
       const a = el.value; el.value = '';
       if (!a) return;
       if (a === 'edit') { setView(K.v === 'edit' ? 'list' : 'edit', null); render(); }
-      else if (a === 'tsv') {
-        dl([cols().join('\t'), ...(K.db[K.cur] || []).map(r => r.join('\t'))].join('\n'), `${K.cur}_${today()}.tsv`, 'text/tab-separated-values;charset=utf-8');
-      }
+      else if (a === 'tsv') dl([cols().join('\t'), ...(K.db[K.cur] || []).map(r => r.join('\t'))].join('\n'), `${K.cur}_${today()}.tsv`, 'text/tab-separated-values;charset=utf-8');
       else if (a === 'imp') dom.fImp.click();
       else if (a === 'clear') {
-        if (K.conf !== 'clear') { K.conf = 'clear'; msg(`clear ${K.cur}?`); return; }
+        if (K.conf !== 'clear') { K.conf = 'clear'; return msg(`clear ${K.cur}?`); }
         (K.db[K.cur] || []).forEach(r => save(r, K.cur, 0));
-        K.db[K.cur] = []; K.conf = null; persist(true); syn(true); render();
+        K.db[K.cur] = []; K.conf = null; persist(); syn(true); render();
       }
     }
   };
 
-  /* ---------------- Event Global ---------------- */
+  /* ---------------- Global Event Listeners ---------------- */
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-a]');
     if (b) {
       if (b.tagName === 'SELECT') return;
       const a = b.dataset.a;
       if (a.startsWith('ref-kontak-trx-')) {
-        const tSh = a.slice(15), kId = b.dataset.kid || '';
-        K.cur = tSh; K.slice = '';
-        setView('list', null);
-        dom.q.value = kId.trim(); K.page = 1;
-        return render();
+        K.cur = a.slice(15); K.slice = ''; setView('list', null); dom.q.value = (b.dataset.kid || '').trim(); K.page = 1; return render();
       }
       if (a.startsWith('ref-')) {
-        const cName = b.dataset.refCol || '', val = cName ? (fld(cName)?.value || '') : '';
+        const cName = b.dataset.refCol || '';
         K.ret = { cur: K.cur, idx: K.idx, parent: K.parent, form: formState(), col: cName };
-        K.cur = a.slice(4);
-        setView('list', null);
-        dom.q.value = val.trim(); K.page = 1;
-        return render();
+        K.cur = a.slice(4); setView('list', null); dom.q.value = (cName ? (fld(cName)?.value || '') : '').trim(); K.page = 1; return render();
       }
       if (!['del-row', 'clear-items', 'act-sel', 'reset-db'].includes(a) && K.conf) { K.conf = null; msg(); }
       return actions[a]?.(b, e);
@@ -1517,16 +1311,10 @@
     const r = e.target.closest('#list>[data-idx]');
     if (r && K.v === 'list' && K.idx === null) {
       const idx = parseInt(r.dataset.idx, 10);
-      if (K.ret) {
-        const selId = K.db[K.cur]?.[idx]?.[0] || '';
-        K.ret.form[K.ret.col] = selId;
-        K.cur = K.ret.cur; K.parent = K.ret.parent;
-        setView('form', K.ret.idx);
-        return render();
-      }
+      if (K.ret) { K.ret.form[K.ret.col] = K.db[K.cur]?.[idx]?.[0] || ''; K.cur = K.ret.cur; K.parent = K.ret.parent; setView('form', K.ret.idx); return render(); }
       if (K.cur === 'cms') { setView('cms_detail', idx); return render(); }
       if (K.cur === 'produk') return openProdForm(K.db.produk[idx] || []);
-      if (isTrx() && K.db[K.cur]?.[idx]?.[0]) K.parent = { type: K.cur, id: K.db[K.cur][idx][0] };
+      if (isTrx() && K.db[K.cur]?.[idx]) K.parent = { type: K.cur, id: trxIdOf(K.cur, K.db[K.cur][idx]) };
       setView('form', idx); render();
     }
   });
@@ -1534,10 +1322,8 @@
   document.addEventListener('input', e => {
     const t = e.target;
     if (t.id === 'q') {
-      if (K.v === 'menu') {
-        const qm = S2(t.value);
-        dom.ft.querySelectorAll('button[data-a]').forEach(btn => { btn.hidden = qm && !btn.textContent.toLowerCase().includes(qm); });
-      } else { K.page = 1; render(); }
+      if (K.v === 'menu') { const qm = S2(t.value); dom.ft.querySelectorAll('button[data-a]').forEach(btn => { btn.hidden = qm && !btn.textContent.toLowerCase().includes(qm); }); }
+      else { K.page = 1; render(); }
       return;
     }
     if (t.dataset.df) {
@@ -1548,16 +1334,14 @@
       return;
     }
     if (t.dataset.col) {
-      const col = t.dataset.col, val = (t.value || '').trim();
       updateFormThumb(t);
-      if (['idproduk', 'namaproduk'].includes(col) && K.cur !== 'produk') {
-        const q = S2(val), f = q && K.db.produk?.find(p => S2(cV(p, 'produk', 'idproduk') || p[0]) === q || S2(cV(p, 'produk', 'namaproduk')) === q);
+      if (['idproduk', 'namaproduk'].includes(t.dataset.col) && K.cur !== 'produk') {
+        const q = S2(t.value), f = q && K.db.produk?.find(p => prodIdOf(p) === q || S2(cV(p, 'produk', 'namaproduk')) === q);
         if (f) {
-          const PROD_SYNC_COLS = ['idproduk', 'namaproduk', 'hargabeli', 'hargajual'];
+          if (K.idx === -1) K.prefill = Object.assign(K.prefill || {}, prefillProd(f));
           flds().forEach(inp => {
-            if (PROD_SYNC_COLS.includes(inp.dataset.col)) {
-              const fi = cI('produk', inp.dataset.col);
-              if (fi !== -1) inp.value = f[fi] || '';
+            if (['idproduk', 'namaproduk', 'hargabeli', 'hargajual'].includes(inp.dataset.col)) {
+              const fi = cI('produk', inp.dataset.col); if (fi !== -1) inp.value = f[fi] || '';
             }
           });
         }
@@ -1567,29 +1351,22 @@
   });
 
   const readFile = (file, mode, cb) => { const rd = new FileReader(); rd.onload = ev => cb(ev.target.result || ''); rd[mode](file); };
-
-  const compressImg = (file, cb) => {
-    readFile(file, 'readAsDataURL', dataUrl => {
-      const img = new Image();
-      img.onload = () => {
-        const maxW = 480, scale = img.width > maxW ? maxW / img.width : 1;
-        const can = document.createElement('canvas');
-        can.width = Math.round(img.width * scale);
-        can.height = Math.round(img.height * scale);
-        const ctx = can.getContext('2d');
-        ctx.drawImage(img, 0, 0, can.width, can.height);
-        cb(can.toDataURL('image/jpeg', 0.65));
-      };
-      img.onerror = () => cb(dataUrl);
-      img.src = dataUrl;
-    });
-  };
+  const compressImg = (file, cb) => readFile(file, 'readAsDataURL', dataUrl => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = img.width > 480 ? 480 / img.width : 1, can = document.createElement('canvas');
+      can.width = Math.round(img.width * scale); can.height = Math.round(img.height * scale);
+      can.getContext('2d').drawImage(img, 0, 0, can.width, can.height);
+      cb(can.toDataURL('image/jpeg', 0.65));
+    };
+    img.onerror = () => cb(dataUrl); img.src = dataUrl;
+  });
 
   function importText(text) {
     const lines = text.split(/\r?\n/).filter(Boolean);
     if (!lines.length) return;
     const sep = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ','), c = cols(),
-          start = lines[0].split(sep).map(s => s.trim().toLowerCase()).every(h => c.includes(h)) ? 1 : 0;
+          start = lines[0].split(sep).map(S2).every(h => c.includes(h)) ? 1 : 0;
     for (let i = start; i < lines.length; i++) {
       const parts = lines[i].split(sep).map(s => s.trim()), row = new Array(c.length).fill('');
       for (let j = 0; j < Math.min(parts.length, c.length); j++) row[j] = parts[j];
@@ -1597,7 +1374,7 @@
       (K.db[K.cur] = K.db[K.cur] || []).push(row); save(row, K.cur, 2);
     }
     if (K.cur === 'skema') applySchemaTable();
-    persist(true); syn(true); render();
+    persist(); syn(true); render();
   }
 
   document.addEventListener('change', e => {
@@ -1605,39 +1382,24 @@
     if (t.dataset.a && actions[t.dataset.a]) actions[t.dataset.a](t);
     const file = t.files?.[0];
     if (!file) return;
-
     if (t === dom.fCam || t === dom.fImg || t === dom.fDoc) {
-      const isDoc = t === dom.fDoc, trgCol = isDoc ? 'file' : 'foto',
-            tInp = fld(trgCol) || fldBy(new RegExp(trgCol, 'i')), jInp = isDoc ? fldBy(/judul|nama/i) : null;
+      const isDoc = t === dom.fDoc, trgCol = isDoc ? 'file' : 'foto', tInp = fld(trgCol) || fldBy(new RegExp(trgCol, 'i')), jInp = isDoc ? fldBy(/judul|nama/i) : null;
       if (jInp && !jInp.value) jInp.value = file.name;
-      if (isDoc) {
-        readFile(file, 'readAsDataURL', data => { if (tInp) { tInp.value = data; updateFormThumb(tInp); } });
-      } else {
-        compressImg(file, data => { if (tInp) { tInp.value = data; updateFormThumb(tInp); } });
-      }
+      const applyData = data => { if (tInp) { tInp.value = data; updateFormThumb(tInp); } };
+      isDoc ? readFile(file, 'readAsDataURL', applyData) : compressImg(file, applyData);
       t.value = '';
-    } else if (t === dom.fImp) {
-      readFile(file, 'readAsText', importText);
-      t.value = '';
-    }
+    } else if (t === dom.fImp) { readFile(file, 'readAsText', importText); t.value = ''; }
   });
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && dom.fb.contains(e.target)) {
-      e.preventDefault();
-      if (K.writing) return;
-      if (!K.u) actions.login();
-      else actions['save-row']();
-    } else if (e.key === 'Escape') {
-      if (!dom.scanBox.hidden) stopScan(); else actions.back();
-    }
+      e.preventDefault(); if (!K.writing) (!K.u ? actions.login : actions['save-row'])();
+    } else if (e.key === 'Escape') { !dom.scanBox.hidden ? stopScan() : actions.back(); }
   });
 
   W.addEventListener('online', () => syn(true));
   navigator.storage?.persist?.().catch(() => {});
-  if (navigator.serviceWorker && /^https?:$/.test(location.protocol)) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
-  }
+  if (navigator.serviceWorker && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('./sw.js').catch(() => {});
 
   /* ---------------- Boot ---------------- */
   (() => {
@@ -1646,19 +1408,17 @@
       const d = JSON.parse(L.getItem('apex') || 'null');
       if (d && typeof d === 'object') {
         ['shs', 'cols', 'vis', 'fvis'].forEach(k => { if (d[k]) K[k] = d[k]; });
-        if (d.parent && typeof d.parent === 'object') K.parent = d.parent;
+        if (d.parent) K.parent = d.parent;
         if (d.cur && K.shs.includes(d.cur)) K.cur = d.cur;
         if (d.u) K.u = L.u = d.u;
-        if (d.df && typeof d.df === 'object') K.df = Object.assign(K.df, d.df);
+        if (d.df) Object.assign(K.df, d.df);
         K.grid = Boolean(d.grid);
       }
     } catch {}
     initDB(async () => {
       const matrix = await idbGet('apex_matrix');
       if (matrix && typeof matrix === 'object') Object.assign(K.db, matrix);
-      applySchemaTable();
-      render();
-      syn(true);
+      applySchemaTable(); render(); syn(true);
     });
   })();
   </script>
