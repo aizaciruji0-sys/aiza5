@@ -35,8 +35,8 @@
     body[data-grid="1"] #list{grid-template-columns:repeat(auto-fill,minmax(min(100%,max(130px,calc(20% - 4px))),1fr))}
     body[data-grid="1"] #list>div{flex-direction:column;align-items:flex-start;padding:4px}
     body[data-grid="1"] #list img{display:block;width:100%;height:85px;object-fit:cover;margin-bottom:4px}
-    #tape{width:100%;max-width:280px;white-space:pre-wrap;font:12px/1.25 monospace}
-    @media print{body{padding:0}header,footer,#tools,#msg{display:none!important}#tape{width:58mm!important;max-width:none}}
+    #tape{width:58mm;max-width:100%;white-space:pre-wrap;font:12px/1.25 monospace;border:1px dashed;padding:4px}
+    @media print{body{padding:0}header,footer,#tools,#msg{display:none!important}#tape{width:58mm!important;max-width:none;border:none;padding:0}}
   </style>
   <script>try{var t=localStorage.theme;if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
@@ -379,7 +379,11 @@
 
   const prodIdOf = p => S2(cV(p, 'produk', 'idproduk') || p?.[0]);
   const prodMap = () => new Map((K.db.produk || []).map(p => [prodIdOf(p), p]).filter(([k]) => Boolean(k)));
-  const prodByNameMap = () => new Map((K.db.produk || []).map(p => [S2(cV(p, 'produk', 'namaproduk')), p]).filter(([k]) => Boolean(k)));
+  const findMasterProd = (r, sh) => {
+    if (!r) return null;
+    const id = S2(cV(r, sh, 'idproduk')), nm = S2(cV(r, sh, 'namaproduk'));
+    return (K.db.produk || []).find(p => (id && prodIdOf(p) === id) || (nm && S2(cV(p, 'produk', 'namaproduk')) === nm)) || null;
+  };
   const kontakMap = () => new Map((K.db.kontak || []).map(x => [S2(cV(x, 'kontak', 'idkontak') || x[0]), cV(x, 'kontak', 'nama') || x[0]]));
   const resolveKontakName = (kId, km = null) => {
     if (!kId) return '';
@@ -422,25 +426,32 @@
   const addFooter = (a, txt, sheet = K.cur, extra = '') => {
     if (hasAccess(a, sheet)) dom.ft.insertAdjacentHTML('beforeend', `<button data-a="${esc(a)}" ${extra}>${esc(txt)}</button> `);
   };
-  const matchFilter = (u, d, meta, skipDate = false, qWords = []) => {
-    const effU = isAdmin() ? K.df.u : (K.u || '');
+  const matchFilter = (u, d, meta, skipDate = false, qWords = [], globalScope = false) => {
+    const effU = (isAdmin() || globalScope) ? K.df.u : (K.u || '');
     return (!effU || S2(u).includes(S2(effU))) &&
       (skipDate || !K.df.from || String(d || '') >= K.df.from) &&
       (skipDate || !K.df.to || String(d || '') <= K.df.to) &&
       (!K.df.kat || S2(meta).includes(S2(K.df.kat))) &&
       (!qWords.length || qWords.every(w => `${u} ${d} ${meta}`.toLowerCase().includes(w)));
   };
+  const canEditTrxItem = (sh, row) => {
+    if (!['produk_jual', 'produk_beli'].includes(sh)) return true;
+    const pType = parentOf(sh), fk = cV(row, sh, fkCol(sh));
+    if (!fk) return true;
+    const pRow = K.db[pType]?.find(p => S2(trxIdOf(pType, p)) === S2(fk));
+    if (!pRow || isOpenStatus(cV(pRow, pType, 'status'))) return true;
+    return hasAccess('edit_item_lunas', sh);
+  };
 
   /* ---------------- Stok & Auto-Update Harga Master Produk ---------------- */
-  const findMasterProd = (r, sh, pm, pnm) => r ? (pm.get(S2(cV(r, sh, 'idproduk'))) || pnm.get(S2(cV(r, sh, 'namaproduk'))) || null) : null;
   const syncMasterProduk = (sh, oldRow, newRow) => {
     if (!STOCK_SHEETS.includes(sh)) return;
     const m = sh === 'produk_beli' ? 1 : -1;
     const si = cI('produk', 'stok'), hbI = cI('produk', 'hargabeli'), hjI = cI('produk', 'hargajual');
-    const pm = prodMap(), pnm = prodByNameMap(), touched = new Map();
+    const touched = new Map();
 
     [{ r: oldRow, s: -m }, { r: newRow, s: m }].forEach(({ r, s }) => {
-      const pRow = findMasterProd(r, sh, pm, pnm);
+      const pRow = findMasterProd(r, sh);
       if (pRow && si > -1) {
         pRow[si] = String(Z(pRow[si]) + N(cV(r, sh, 'qty')) * s);
         touched.set(prodIdOf(pRow), pRow);
@@ -448,7 +459,7 @@
     });
 
     if (newRow) {
-      const pRow = findMasterProd(newRow, sh, pm, pnm);
+      const pRow = findMasterProd(newRow, sh);
       if (pRow) {
         const idCol = cI(sh, 'idproduk');
         if (idCol > -1 && !S2(newRow[idCol])) newRow[idCol] = cV(pRow, 'produk', 'idproduk') || pRow[0];
@@ -624,7 +635,7 @@
       if (K.slice === 'ready' || K.slice === 'sisa_stok') {
         if (K.cur !== 'produk') return true;
         if (K.slice === 'ready' && Z(cV(r, 'produk', 'stok')) <= 0) return false;
-        return matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true);
+        return matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true, [], true);
       }
       if (K.slice === 'piutang') return K.cur !== 'penjualan' || (paidOf('penjualan', r, cm) < trxNet('penjualan', r) && matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${cV(r, 'penjualan', 'idkontak')} ${resolveKontakName(cV(r, 'penjualan', 'idkontak'), km)} ${cV(r, 'penjualan', 'catatan')}`));
       if (['saldo_filter', 'profit', 'total_penjualan'].includes(K.slice)) return K.cur !== 'penjualan' || matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${cV(r, 'penjualan', 'idkontak')} ${resolveKontakName(cV(r, 'penjualan', 'idkontak'), km)} ${cV(r, 'penjualan', 'catatan')} ${calcItems('penjualan', trxIdOf('penjualan', r)).items.map(it => cV(pm.get(S2(it.id)), 'produk', 'kategori')).join(' ')}`);
@@ -747,7 +758,7 @@
 
     (K.db.produk || []).forEach(r => {
       const s = Z(cV(r, 'produk', 'stok'));
-      if (matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true, qW)) {
+      if (matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true, qW, true)) {
         sStok += N(s);
         if (s > 0) { rCount++; eMod += s * N(cV(r, 'produk', 'hargabeli')); eJual += s * N(cV(r, 'produk', 'hargajual')); }
       }
@@ -797,7 +808,8 @@
     const c = cols(), bypassAdd = K.idx === -1 && ['produk', 'kas', 'skema'].includes(K.cur),
           formCols = bypassAdd ? fvis() : fvis().filter(col => hasAccess(col, K.cur)),
           row = (K.idx !== null && K.idx >= 0) ? (K.db[K.cur][K.idx] || []) : [],
-          stVal = S2(cV(row, K.cur, 'status')), isOpen = isTrx() && isOpenStatus(stVal), isDraft = isTrx() && stVal === 'draft';
+          stVal = S2(cV(row, K.cur, 'status')), isOpen = isTrx() && isOpenStatus(stVal), isDraft = isTrx() && stVal === 'draft',
+          itemEditable = K.idx === -1 || canEditTrxItem(K.cur, row);
 
     if (isTrx() && K.idx !== null && K.idx >= 0) {
       const { raw, disc, cogs, pot } = calcItems(K.cur, trxIdOf(K.cur, row)), net = Math.max(0, raw - disc - N(cV(row, K.cur, 'diskon')));
@@ -825,8 +837,12 @@
         navigator.geolocation.getCurrentPosition(p => { if (!loc.value) loc.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => { loc.value = 'here()'; }, { timeout: 4000 });
     }
 
-    addFooter('back', '<'); addFooter('save-row', 'save');
-    if (isTrx()) addFooter('trx-pick-kontak', 'kontak');
+    addFooter('back', '<');
+    if (itemEditable) addFooter('save-row', 'save');
+    if (isTrx()) {
+      addFooter('trx-pick-kontak', 'kontak');
+      if (K.idx !== null && K.idx >= 0) addFooter('batal-trx', K.conf === 'batal-trx' ? 'sure?' : 'batal');
+    }
 
     formCols.forEach(col => {
       const trg = resolveRef(col, c.indexOf(col));
@@ -862,7 +878,7 @@
       addFooter('cicil', 'cicil');
       if (!isDraft) addFooter('print', 'print');
     }
-    if (K.idx !== null && K.idx >= 0) {
+    if (K.idx !== null && K.idx >= 0 && itemEditable) {
       if (!isDraft) addFooter('dup-row', 'dup');
       addFooter('del-row', K.conf === 'del' ? 'sure?' : 'del');
     }
@@ -1020,6 +1036,16 @@
       dropTrxDeps(type, id); dropRows(type, r => S2(trxIdOf(type, r)) === S2(id));
       K.parent = K.conf = null; persist(); syn(true); K.cur = 'produk'; setView('list', null); render();
     },
+    'batal-trx': () => {
+      if (K.conf !== 'batal-trx') { K.conf = 'batal-trx'; render(); return; }
+      const target = K.idx >= 0 ? K.db[K.cur][K.idx] : null;
+      if (!target || !isTrx()) return;
+      const id = trxIdOf(K.cur, target);
+      K.idx = K.parent = K.conf = null;
+      if (id) dropTrxDeps(K.cur, id);
+      dropRows(K.cur, r => r === target);
+      persist(); syn(true); setView('list', null); render();
+    },
     'add-cart-item': () => { K.prefill = null; K.prodIdx = null; setView('form', -1); render(); },
     'edit-cms': () => { setView('form', K.idx); render(); },
     'dl-cms-file': () => {
@@ -1042,6 +1068,7 @@
       try {
         const c = cols(), oldRow = (K.idx >= 0 && K.db[K.cur][K.idx]) ? K.db[K.cur][K.idx].slice() : null,
               row = oldRow ? oldRow.slice(0, c.length) : new Array(c.length).fill('');
+        if (oldRow && !canEditTrxItem(K.cur, oldRow)) return msg('tidak ada akses edit item transaksi');
         while (row.length < c.length) row.push('');
         if (K.idx === -1 && K.prefill) {
           Object.entries(K.prefill).forEach(([k, v]) => {
@@ -1052,7 +1079,9 @@
         flds().forEach(inp => { const ci = c.indexOf(inp.dataset.col); if (ci !== -1) row[ci] = inp.value.trim(); });
 
         if (STOCK_SHEETS.includes(K.cur)) {
-          const pRow = findMasterProd(row, K.cur, prodMap(), prodByNameMap());
+          const qtyRaw = cV(row, K.cur, 'qty').trim();
+          if (!qtyRaw || Z(qtyRaw) <= 0) return msg('qty harus lebih dari 0');
+          const pRow = findMasterProd(row, K.cur);
           if (pRow) {
             const idI = cI(K.cur, 'idproduk'), nmI = cI(K.cur, 'namaproduk'), hbI = cI(K.cur, 'hargabeli'), hjI = cI(K.cur, 'hargajual');
             const prodSwitched = oldRow && S2(cV(oldRow, K.cur, 'idproduk')) !== prodIdOf(pRow);
@@ -1304,7 +1333,7 @@
         K.ret = { cur: K.cur, idx: K.idx, parent: K.parent, form: formState(), col: cName };
         K.cur = a.slice(4); setView('list', null); dom.q.value = (cName ? (fld(cName)?.value || '') : '').trim(); K.page = 1; return render();
       }
-      if (!['del-row', 'clear-items', 'act-sel', 'reset-db'].includes(a) && K.conf) { K.conf = null; msg(); }
+      if (!['del-row', 'clear-items', 'batal-trx', 'act-sel', 'reset-db'].includes(a) && K.conf) { K.conf = null; msg(); }
       return actions[a]?.(b, e);
     }
 
