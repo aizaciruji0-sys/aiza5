@@ -30,8 +30,8 @@
     body[data-grid="1"] #list{grid-template-columns:repeat(auto-fill,minmax(min(100%,max(130px,calc(20% - 4px))),1fr))}
     body[data-grid="1"] #list>div{flex-direction:column;align-items:flex-start;padding:4px}
     body[data-grid="1"] #list img{display:block;width:100%;height:85px;object-fit:cover;margin-bottom:4px}
-    #tape{width:58mm;max-width:100%;white-space:pre-wrap;font:12px/1.25 monospace;border:1px dashed;padding:4px}
-    @media print{body{padding:0}header,footer,#tools,#msg{display:none!important}#tape{width:58mm!important;max-width:none;border:none;padding:0}}
+    #tape{width:58mm;max-width:100%;white-space:pre;overflow-x:auto;font:11px/1.25 monospace;border:1px dashed;padding:4px}
+    @media print{body{padding:0}header,footer,#tools,#msg{display:none!important}#tape{width:58mm!important;max-width:none;overflow:visible;border:none;padding:0}}
   </style>
   <script>try{if(localStorage.theme)document.documentElement.dataset.theme=localStorage.theme;}catch(e){}</script>
 </head>
@@ -269,20 +269,22 @@
     const row = K.db.penjualan?.find(r => S2(trxIdOf('penjualan', r)) === S2(id)); if (!row) return '';
     const val = k => cV(row, 'penjualan', k), paid = paidOf('penjualan', row), { raw, disc, items } = calcItems('penjualan', id), gTot = Math.max(0, raw - disc - N(val('diskon'))), diff = paid - gTot, WL = 32, tr = K.db.toko?.[0] || [], tc = K.cols.toko || [],
           store = Object.fromEntries(['name', 'sub', 'phone', 'bank', 'footer'].map(k => { const i = tc.indexOf(k); return [k, i > -1 && tr[i] !== undefined ? tr[i] : (HARD.store[k] || '')]; })),
-          pad = s => { const t = String(s || '').trim().slice(0, WL), l = Math.floor((WL - t.length) / 2); return ' '.repeat(l) + t + ' '.repeat(WL - t.length - l); },
-          lr = (l, r) => l + ' '.repeat(Math.max(1, WL - l.length - String(r).length)) + r, bar = c => c.repeat(WL),
+          fit = s => String(s || '').trim().slice(0, WL),
+          pad = s => { const t = fit(s), l = Math.floor((WL - t.length) / 2); return ' '.repeat(l) + t + ' '.repeat(WL - t.length - l); },
+          lr = (l, r) => { const rs = String(r || '').slice(0, WL), ls = String(l || '').slice(0, Math.max(0, WL - rs.length - 1)); return ls + ' '.repeat(Math.max(1, WL - ls.length - rs.length)) + rs; },
+          bar = c => c.repeat(WL),
           lines = [pad(store.name), store.sub && pad(store.sub), store.phone && pad(store.phone), store.bank && pad(store.bank), bar('='), lr(`${val('date') || today()} ${id}`, val('user') || K.u || 'admin'), bar('-')].filter(Boolean);
-    if (!items.length) lines.push('(kosong)');
-    items.forEach(it => { lines.push(it.name); if (it.dU > 0) lines.push(`${fmtNum(it.p)} -disc ${fmtNum(it.dU)}`); lines.push(lr(`${it.q}x ${fmtNum(it.eff)}`, fmtNum(it.tot))); });
+    if (!items.length) lines.push(fit('(kosong)'));
+    items.forEach(it => { lines.push(fit(it.name)); if (it.dU > 0) lines.push(fit(`${fmtNum(it.p)} -disc ${fmtNum(it.dU)}`)); lines.push(lr(`${it.q}x ${fmtNum(it.eff)}`, fmtNum(it.tot))); });
     lines.push(bar('-'), lr('Subtotal', fmtNum(raw)));
     if (disc > 0) lines.push(lr('Diskon Item', '-' + fmtNum(disc)));
     if (N(val('diskon')) > 0) lines.push(lr('Diskon', '-' + fmtNum(val('diskon'))));
     lines.push(lr('Total', fmtNum(gTot)), lr('Bayar', fmtNum(paid)), lr(diff >= 0 ? 'Kembali' : 'Kurang', fmtNum(Math.abs(diff))), bar('-'));
     if (store.footer) lines.push(pad(store.footer));
-    const kId = val('idkontak'), kDisp = resolveKontakName(kId); if (kDisp) lines.push(' ' + kDisp); if (val('catatan')) lines.push(' ' + val('catatan'));
+    const kId = val('idkontak'), kDisp = resolveKontakName(kId); if (kDisp) lines.push(fit(' ' + kDisp)); if (val('catatan')) lines.push(fit(' ' + val('catatan')));
     const cm = cicilMap(), debt = kId ? (K.db.penjualan || []).reduce((sum, r) => (S2(cV(r, 'penjualan', 'idkontak')) === S2(kId) && isUserVisible(r, 'penjualan')) ? sum + Math.max(0, trxNet('penjualan', r) - paidOf('penjualan', r, cm)) : sum, 0) : 0;
     if (debt > 0) lines.push(lr('Total Piutang', '-' + fmtNum(debt)));
-    return lines.join('\n');
+    return lines.map(fit).join('\n');
   };
 
   const syncTrx = (t, forceStatus = false) => {
@@ -406,7 +408,7 @@
     });
     if (K.idx === -1 && getRoleRules().includes('wajiblokasi')) { const loc = fldBy(GEO_RE); if (loc && !loc.value && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { if (!loc.value) loc.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => { loc.value = 'here()'; }, { timeout: 4000 }); }
     addFooter('back', '<'); if (itemEditable) addFooter('save-row', 'save');
-    if (isTrx()) { addFooter('trx-pick-kontak', 'kontak'); if (K.idx !== null && K.idx >= 0) addFooter('batal-trx', K.conf === 'batal-trx' ? 'sure?' : 'batal'); }
+    if (isTrx()) addFooter('trx-pick-kontak', 'kontak');
     formCols.forEach(col => { const trg = resolveRef(col, c.indexOf(col)); if (trg && hasAccess(trg)) addFooter(`ref-${trg}`, `ref ${trg}`, K.cur, `data-ref-col="${esc(col)}"${hasRefMatch(trg, fld(col)?.value) ? '' : ' hidden'}`); });
     if (K.cur === 'kontak' && K.idx !== null && K.idx >= 0) { const kId = S2(cV(row, 'kontak', 'idkontak') || row[0]); if (kId) ['penjualan', 'pembelian'].forEach(tSh => { if (hasAccess(tSh) && (K.db[tSh] || []).some(tr => isUserVisible(tr, tSh) && S2(cV(tr, tSh, 'idkontak')) === kId)) addFooter(`ref-kontak-trx-${tSh}`, `ref ${tSh}`, K.cur, `data-kid="${esc(cV(row, 'kontak', 'idkontak') || row[0])}"`); }); }
     if (formCols.some(k => /foto/i.test(k))) { addFooter('cam', 'kamera'); addFooter('pic', 'file foto'); }
@@ -436,7 +438,7 @@
     if (isBulkEdit) { addFooter('back', '<'); addFooter('save-bulk', 'save'); } else if (K.ret) addFooter('back', '<');
     else {
       const pType = parentOf(K.cur), op = pType ? getOpenTrx(pType) : null;
-      if (pType && op) { K.parent = { type: pType, id: op.id, open: true }; const { raw, disc } = calcItems(pType, op.id); addFooter('clear-items', K.conf === 'clear-items' ? 'sure?' : 'clear'); addFooter('add-cart-item', '+item'); addFooter('v-selesai', `${pType} (${fmtNum(raw - disc)})`); if (pType === 'penjualan') addFooter('show-nota', 'nota'); }
+      if (pType && op) { K.parent = { type: pType, id: op.id, open: true }; const { raw, disc } = calcItems(pType, op.id); addFooter('batal-trx', 'batal'); addFooter('clear-items', K.conf === 'clear-items' ? 'sure?' : 'clear'); addFooter('add-cart-item', '+item'); addFooter('v-selesai', `${pType} (${fmtNum(raw - disc)})`); if (pType === 'penjualan') addFooter('show-nota', 'nota'); }
       renderNavFooters();
     }
     if (limit < matched.length) addFooter('more', 'more');
@@ -491,7 +493,18 @@
     'v-beli': () => { const op = getOpenTrx('pembelian'); if (op) K.parent = { type: 'pembelian', id: op.id, open: true }; K.cur = 'produk_beli'; K.grid = false; K.slice = ''; K.ret = null; setView('list', null); render(); },
     'v-selesai': () => { if (!K.parent) return; const fi = (K.db[K.parent.type] || []).findIndex(r => S2(trxIdOf(K.parent.type, r)) === S2(K.parent.id)); K.cur = K.parent.type; setView('form', fi !== -1 ? fi : null); render(); },
     'clear-items': () => { if (K.conf !== 'clear-items') { K.conf = 'clear-items'; return render(); } if (!K.parent) return; const { type, id } = K.parent; dropTrxDeps(type, id); dropRows(type, r => S2(trxIdOf(type, r)) === S2(id)); K.parent = K.conf = null; persist(); syn(true); K.cur = 'produk'; setView('list', null); render(); },
-    'batal-trx': () => { if (K.conf !== 'batal-trx') { K.conf = 'batal-trx'; return render(); } const target = K.idx >= 0 ? K.db[K.cur][K.idx] : null; if (!target || !isTrx()) return; const id = trxIdOf(K.cur, target); K.idx = K.parent = K.conf = null; if (id) dropTrxDeps(K.cur, id); dropRows(K.cur, r => r === target); persist(); syn(true); setView('list', null); render(); },
+    'batal-trx': () => {
+      const pType = parentOf(K.cur) || K.parent?.type, op = pType ? getOpenTrx(pType) : null;
+      if (op) {
+        const sI = cI(pType, 'status');
+        if (sI > -1 && isOpenStatus(op.row[sI])) {
+          const { raw, disc } = calcItems(pType, op.id), net = Math.max(0, raw - disc - N(cV(op.row, pType, 'diskon'))), paid = paidOf(pType, op.row), kId = cV(op.row, pType, 'idkontak');
+          op.row[sI] = net > 0 ? (paid >= net ? 'lunas' : (kId ? 'piutang' : 'batal')) : 'batal';
+          save(op.row, pType, 1);
+        }
+      }
+      K.parent = K.conf = null; persist(); K.cur = 'produk'; K.grid = true; setView('list', null); render();
+    },
     'add-cart-item': () => { K.prefill = K.prodIdx = null; setView('form', -1); render(); }, 'edit-cms': () => { setView('form', K.idx); render(); },
     'dl-cms-file': () => { const r = K.db.cms?.[K.idx] || [], data = cV(r, 'cms', 'file'), judul = cV(r, 'cms', 'judul') || 'berkas'; if (!data) return; if (/^https?:\/\//i.test(data)) return W.open(data, '_blank', 'noopener,noreferrer'); if (/^data:/i.test(data)) { const a = document.createElement('a'); a.href = data; a.download = judul.replace(/\s+/g, '_'); document.body.appendChild(a); a.click(); return setTimeout(() => a.remove(), 400); } dl(data, `${judul}.txt`); },
     nav: b => { K.cur = b.dataset.s; setView('list', null); K.page = 1; K.slice = b.dataset.slice || ''; render(); },
