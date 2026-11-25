@@ -139,7 +139,7 @@
       Object.entries(m.cols || {}).forEach(([k, c]) => { if (!K.cols[k] && c?.length) K.cols[k] = c; });
       Object.entries(m.vis || {}).forEach(([k, v]) => { if (!K.vis[k] && v?.length) K.vis[k] = v; });
       const seed = []; K.shs.forEach((t, i) => { if ((!m.v[i] || m.v[i] === '0_0_0') && K.db[t]?.length) K.db[t].forEach(r => seed.push({ tn: t, y: 2, r })); });
-      if (seed.length) { const sr = await req({ a: 'push', m: seed, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl }); if (sr.manifest?.v) m = sr.manifest; }
+      if (seed.length && !force) { const sr = await req({ a: 'push', m: seed, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl }); if (sr.manifest?.v) m = sr.manifest; }
       const toPull = K.shs.map((_, i) => (force || (m.v[i] && m.v[i] !== ver[i])) ? { t: i } : null).filter(Boolean);
       if (toPull.length && !(await idbOp('mut', 'readonly', s => s.getAll(), [])).length) {
         const b = await req({ a: 'pull_batch', reqs: toPull, tn: K.shs, cols: K.cols });
