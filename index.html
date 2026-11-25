@@ -227,6 +227,11 @@
       if (!q.length || q.every(w => (r.join(' ') + extra).toLowerCase().includes(w))) res.push(i);
     }
     if (K.sort > 0 && K.sort <= cols().length) { const ci = K.sort - 1; res.sort((a, b) => String(rows[a]?.[ci] || '').localeCompare(String(rows[b]?.[ci] || ''), undefined, { numeric: true }) * K.dir); }
+    else if (K.cur === 'produk' && K.sort === cols().length + 1) {
+      const sold = {}; (K.db.produk_jual || []).forEach(r => { const k = S2(cV(r, 'produk_jual', 'idproduk')); if (k) sold[k] = (sold[k] || 0) + N(cV(r, 'produk_jual', 'qty')); });
+      (K.db.ecer || []).forEach(r => { const k = S2(cV(r, 'ecer', 'idproduk')); if (k) sold[k] = (sold[k] || 0) + N(cV(r, 'ecer', 'qty')); });
+      res.sort((a, b) => ((sold[S2(cV(rows[a], 'produk', 'idproduk') || rows[a]?.[0])] || 0) - (sold[S2(cV(rows[b], 'produk', 'idproduk') || rows[b]?.[0])] || 0)) * K.dir);
+    }
     else if (K.dir === -1) res.reverse();
     return res;
   };
@@ -236,8 +241,9 @@
     if (dom.sh.dataset.shs !== allowed.join(',')) { dom.sh.innerHTML = allowed.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join(''); dom.sh.dataset.shs = allowed.join(','); }
     if (!allowed.includes(K.cur) && allowed.length) K.cur = allowed[0];
     dom.sh.value = K.cur; dom.sh.hidden = !hasAccess('sh-sel');
-    const c = cols();
-    if (dom.st.dataset.cur !== K.cur || dom.st.children.length !== c.length + 1) { dom.st.innerHTML = '<option value="0">srt</option>' + c.map((col, i) => `<option value="${i + 1}">${esc(col)}</option>`).join(''); dom.st.dataset.cur = K.cur; }
+    const c = cols(), extraSrt = K.cur === 'produk' ? `<option value="${c.length + 1}">terjual</option>` : '', expLen = c.length + (K.cur === 'produk' ? 2 : 1);
+    if (dom.st.dataset.cur !== K.cur || dom.st.children.length !== expLen) { dom.st.innerHTML = '<option value="0">srt</option>' + c.map((col, i) => `<option value="${i + 1}">${esc(col)}</option>`).join('') + extraSrt; dom.st.dataset.cur = K.cur; }
+    if (Number(dom.st.value) !== K.sort && K.sort >= expLen) K.sort = 0;
     dom.st.value = String(K.sort); dom.st.hidden = !hasAccess('st-sel');
     ['dir', 'grid'].forEach(k => dom.tools.querySelector(`[data-a="${k}"]`).hidden = !hasAccess(k));
     dom.act.hidden = !hasAccess('act-sel'); [...dom.act.options].forEach(o => { if (o.value) o.hidden = !hasAccess(o.value); });
@@ -336,7 +342,15 @@
     menu: () => { K.v = K.v === 'menu' ? 'dash' : 'menu'; dom.q.value = ''; render(); }, theme: () => { setTheme(setTheme() === 'dark' ? 'light' : 'dark'); render(); },
     'v-dash': () => { K.prefill = K.ret = null; K.slice = ''; setView('dash', null); render(); }, 'v-kas': () => { if (!K.shs.includes('kas')) K.shs.push('kas'); K.cur = 'kas'; K.slice = ''; K.prefill = K.ret = null; setView('form', -1); render(); }, 'v-shop': () => { K.cur = 'produk'; K.grid = true; K.prefill = K.ret = null; setView('list', null); K.slice = ''; render(); }, 'v-jual': () => openCart('penjualan'), 'v-beli': () => openCart('pembelian'),
     'clear-items': () => { if (K.conf !== 'clear-items') { K.conf = 'clear-items'; return render(); } if (!K.parent) return; const { type, id } = K.parent; dropRows(type, r => S2(trxIdOf(type, r)) === S2(id), true); K.parent = K.conf = null; persist(); syn(true); K.cur = 'produk'; setView('list', null); render(); },
-    'batal-trx': () => { const pType = (!isTrx() && REL[K.cur]?.[0]) || K.parent?.type, op = pType ? getOpenTrx(pType) : null; if (op) { const sI = cI(pType, 'status'); if (sI > -1 && ['draft', 'revisi'].includes(S2(op.row[sI]))) { const { raw, disc } = calcItems(pType, op.id), net = Math.max(0, raw - disc - N(cV(op.row, pType, 'diskon'))), paid = paidOf(pType, op.row), kId = cV(op.row, pType, 'idkontak'); op.row[sI] = net > 0 ? (paid >= net ? 'lunas' : (kId ? 'piutang' : 'batal')) : 'batal'; save(op.row, pType, 1); } } K.parent = K.conf = null; persist(); K.cur = 'produk'; K.grid = true; setView('list', null); render(); },
+    'batal-trx': () => {
+      const pType = (!isTrx() && REL[K.cur]?.[0]) || K.parent?.type, op = pType ? getOpenTrx(pType) : null;
+      if (op) {
+        const sI = cI(pType, 'status'), st = sI > -1 ? S2(op.row[sI]) : '';
+        if (st === 'draft') dropRows(pType, r => S2(trxIdOf(pType, r)) === S2(op.id), true);
+        else if (sI > -1 && st === 'revisi') { const { raw, disc } = calcItems(pType, op.id), net = Math.max(0, raw - disc - N(cV(op.row, pType, 'diskon'))), paid = paidOf(pType, op.row), kId = cV(op.row, pType, 'idkontak'); op.row[sI] = net <= 0 ? 'draft' : paid >= net ? 'lunas' : kId ? 'piutang' : 'draft'; save(op.row, pType, 1); }
+      }
+      K.parent = K.conf = null; persist(); syn(true); K.cur = 'produk'; K.grid = true; setView('list', null); render();
+    },
     'add-cart-item': () => { K.prefill = null; setView('form', -1); render(); },
     'edit-cms': () => { setView('form', K.idx); render(); }, // No. 107
     'dl-cms-file': () => { const r = K.db.cms?.[K.idx] || [], data = cV(r, 'cms', 'file'), judul = cV(r, 'cms', 'judul') || 'berkas'; if (!data) return; if (/^https?:\/\//i.test(data)) return W.open(data, '_blank', 'noopener,noreferrer'); if (/^data:/i.test(data)) { const a = document.createElement('a'); a.href = data; a.download = judul.replace(/\s+/g, '_'); document.body.appendChild(a); a.click(); return setTimeout(() => a.remove(), 400); } dl(data, `${judul}.txt`); }, // No. 108
