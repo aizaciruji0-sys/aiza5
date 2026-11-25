@@ -36,30 +36,15 @@
   <script>try{if(localStorage.theme)document.documentElement.dataset.theme=localStorage.theme;}catch(e){}</script>
 </head>
 <body>
-  <header id="h">
-    <button data-a="menu">≡</button>
-    <input type="search" id="q" placeholder="Cari..." autocomplete="off">
-    <button data-a="refresh">↻</button>
-    <button data-a="scan">📷</button>
-    <button data-a="add">add</button>
-  </header>
+  <header id="h"><button data-a="menu">≡</button><input type="search" id="q" placeholder="Cari..." autocomplete="off"><button data-a="refresh">↻</button><button data-a="scan">📷</button><button data-a="add">add</button></header>
   <p id="msg" data-a="closemsg" hidden></p>
   <div id="scan-box" hidden><video id="scan-vid" autoplay playsinline muted></video><button data-a="stop-scan">✕ Tutup Scanner</button></div>
   <main>
-    <div id="tools">
-      <select id="sh-sel" data-a="sh-sel"></select>
-      <select id="st-sel" data-a="st-sel"></select>
-      <button data-a="dir">^</button>
-      <button data-a="grid">#</button>
-      <select id="act-sel" data-a="act-sel"><option value="" disabled selected>act</option><option value="edit">edit</option><option value="tsv">tsv export</option><option value="imp">import</option><option value="clear">clear</option></select>
-    </div>
+    <div id="tools"><select id="sh-sel" data-a="sh-sel"></select><select id="st-sel" data-a="st-sel"></select><button data-a="dir">^</button><button data-a="grid">#</button><select id="act-sel" data-a="act-sel"><option value="" disabled selected>act</option><option value="edit">edit</option><option value="tsv">tsv export</option><option value="imp">import</option><option value="clear">clear</option></select></div>
     <div id="box-form"></div><div id="box-dash"></div><div id="box-nota"><pre id="tape"></pre></div><div id="list"></div>
   </main>
   <footer id="ft"></footer>
-  <input id="f-cam" type="file" accept="image/*" capture="environment" hidden>
-  <input id="f-img" type="file" accept="image/*" hidden>
-  <input id="f-doc" type="file" hidden>
-  <input id="f-imp" type="file" accept=".tsv,.txt,.csv" hidden>
+  <input id="f-cam" type="file" accept="image/*" capture="environment" hidden><input id="f-img" type="file" accept="image/*" hidden><input id="f-doc" type="file" hidden><input id="f-imp" type="file" accept=".tsv,.txt,.csv" hidden>
   <script>
   'use strict';
   const HARD = {
@@ -96,26 +81,13 @@
 
   const W = window, L = localStorage, $ = id => document.getElementById(id);
   let db = null, syncing = false, syncTimer = null, scanStream = null, scanTimer = null, seq = 0, needSync = 0;
-  const dom = Object.fromEntries(['h', 'q', 'msg', 'tools', 'scan-box', 'scan-vid', 'f-cam', 'f-img', 'f-doc', 'f-imp', 'sh-sel', 'st-sel', 'act-sel', 'box-form', 'box-dash', 'list', 'ft', 'tape', 'box-nota'].map(k => [k.replace(/-([a-z])/g, (_, c) => c.toUpperCase()).replace(/^box/, m => m === 'box' ? 'b' : m), $(k)]));
-  Object.assign(dom, { fb: $('box-form'), db: $('box-dash'), ls: $('list'), bn: $('box-nota'), sh: $('sh-sel'), st: $('st-sel'), act: $('act-sel') });
+  const dom = { h: $('h'), q: $('q'), msg: $('msg'), tools: $('tools'), scanBox: $('scan-box'), scanVid: $('scan-vid'), fCam: $('f-cam'), fImg: $('f-img'), fDoc: $('f-doc'), fImp: $('f-imp'), sh: $('sh-sel'), st: $('st-sel'), act: $('act-sel'), fb: $('box-form'), db: $('box-dash'), ls: $('list'), ft: $('ft'), tape: $('tape'), bn: $('box-nota') };
 
   /* IndexedDB & Sync */
-  const initDB = cb => {
-    try {
-      const rq = indexedDB.open('apex_db', 1);
-      rq.onupgradeneeded = e => { const d = e.target.result; if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv'); if (!d.objectStoreNames.contains('mut')) d.createObjectStore('mut', { keyPath: 'i' }); };
-      rq.onsuccess = e => { db = e.target.result; cb?.(); }; rq.onerror = () => cb?.();
-    } catch { cb?.(); }
-  };
-  const idbOp = (st, mode, fn, fb = null) => new Promise(res => {
-    if (!db) return res(fb);
-    try { const r = fn(db.transaction(st, mode).objectStore(st)); if (r && 'onsuccess' in r) { r.onsuccess = () => res(r.result ?? fb); r.onerror = () => res(fb); } else res(fb); } catch { res(fb); }
-  });
+  const initDB = cb => { try { const rq = indexedDB.open('apex_db', 1); rq.onupgradeneeded = e => { const d = e.target.result; ['kv', 'mut'].forEach(s => !d.objectStoreNames.contains(s) && d.createObjectStore(s, s === 'mut' ? { keyPath: 'i' } : undefined)); }; rq.onsuccess = e => { db = e.target.result; cb?.(); }; rq.onerror = () => cb?.(); } catch { cb?.(); } };
+  const idbOp = (st, mode, fn, fb = null) => new Promise(res => { if (!db) return res(fb); try { const r = fn(db.transaction(st, mode).objectStore(st)); if (r && 'onsuccess' in r) { r.onsuccess = () => res(r.result ?? fb); r.onerror = () => res(fb); } else res(fb); } catch { res(fb); } });
   const idbGet = (k, st = 'kv') => idbOp(st, 'readonly', s => s.get(k)), idbAll = (st = 'mut') => idbOp(st, 'readonly', s => s.getAll(), []);
-  const idbPut = (val, k = null, st = 'kv', done = null) => {
-    if (!db) return done?.();
-    try { const tx = db.transaction(st, 'readwrite'), s = tx.objectStore(st); st === 'kv' && k != null ? s.put(val, k) : s.put(val); if (done) tx.oncomplete = done; } catch { done?.(); }
-  };
+  const idbPut = (val, k = null, st = 'kv', done = null) => { if (!db) return done?.(); try { const tx = db.transaction(st, 'readwrite'), s = tx.objectStore(st); st === 'kv' && k != null ? s.put(val, k) : s.put(val); if (done) tx.oncomplete = done; } catch { done?.(); } };
   const idbDel = keys => { if (db && keys?.length) try { const s = db.transaction('mut', 'readwrite').objectStore('mut'); keys.forEach(k => s.delete(k)); } catch {} };
   const idbClear = st => { if (db) try { db.transaction(st, 'readwrite').objectStore(st).clear(); } catch {} };
 
@@ -125,10 +97,7 @@
     p.u = L.u || K.u || 'admin';
     for (const [url, ct] of [[HARD.d1Url, 'application/json'], [p.a !== 'sync_gas' && HARD.gasUrl, 'text/plain;charset=utf-8']]) {
       if (!url) continue;
-      try {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': ct }, body: JSON.stringify(p), redirect: 'follow', signal: AbortSignal.timeout?.(25000) });
-        if (res.ok) { const j = await res.json(); if (j?.ok) return j; }
-      } catch {}
+      try { const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': ct }, body: JSON.stringify(p), redirect: 'follow', signal: AbortSignal.timeout?.(25000) }); if (res.ok) { const j = await res.json(); if (j?.ok) return j; } } catch {}
     }
     return { ok: false };
   }
@@ -144,49 +113,32 @@
   async function syn(force = false) {
     if (!navigator.onLine || !db) return false;
     if (syncing) { needSync = Math.max(needSync, force ? 2 : 1); return false; }
-    syncing = true; msg('sync...');
-    let ok = false;
+    syncing = true; msg('sync...'); let ok = false;
     try {
       if (force) L.vs = '[]';
       const ver = JSON.parse(L.vs || '[]'), queued = await idbAll();
-      if (queued.length) {
-        const pr = await req({ a: 'push', m: queued, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl });
-        if (!pr.ok) throw 0;
-        idbDel(queued.map(x => x.i));
-      }
+      if (queued.length) { const pr = await req({ a: 'push', m: queued, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl }); if (!pr.ok) throw 0; idbDel(queued.map(x => x.i)); }
       let m = (force && await req({ a: 'sync_gas', tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl })) || null;
       if (!m?.v) m = await req({ a: 'manifest', tn: K.shs, cols: K.cols });
       if (!m?.v) throw 0;
-
       (m.shs || []).forEach(s => { if (!K.shs.includes(s)) K.shs.push(s); });
       Object.entries(m.cols || {}).forEach(([k, c]) => { if (!K.cols[k] && c?.length) K.cols[k] = c; });
       Object.entries(m.vis || {}).forEach(([k, v]) => { if (!K.vis[k] && v?.length) K.vis[k] = v; });
-
-      const seed = [];
-      K.shs.forEach((t, i) => { if ((!m.v[i] || m.v[i] === '0_0_0') && K.db[t]?.length) K.db[t].forEach(r => seed.push({ tn: t, y: 2, r })); });
+      const seed = []; K.shs.forEach((t, i) => { if ((!m.v[i] || m.v[i] === '0_0_0') && K.db[t]?.length) K.db[t].forEach(r => seed.push({ tn: t, y: 2, r })); });
       if (seed.length) { const sr = await req({ a: 'push', m: seed, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl }); if (sr.manifest?.v) m = sr.manifest; }
-
       const toPull = K.shs.map((_, i) => (force || (m.v[i] && m.v[i] !== ver[i])) ? { t: i } : null).filter(Boolean);
       if (toPull.length && !(await idbAll()).length) {
         const b = await req({ a: 'pull_batch', reqs: toPull, tn: K.shs, cols: K.cols });
         if (b.ok && Array.isArray(b.results)) {
-          b.results.forEach(x => {
-            const name = K.shs[x?.t];
-            if (!name || !x?.v) return;
-            ver[x.t] = x.v;
-            if (!K.cols[name] && x.cols?.length) K.cols[name] = x.cols;
-            K.db[name] = remapRows(x.r || [], x.cols, K.cols[name]);
-          });
+          b.results.forEach(x => { const name = K.shs[x?.t]; if (!name || !x?.v) return; ver[x.t] = x.v; if (!K.cols[name] && x.cols?.length) K.cols[name] = x.cols; K.db[name] = remapRows(x.r || [], x.cols, K.cols[name]); });
           applySchemaTable(); L.vs = JSON.stringify(ver); persist();
-          const ae = document.activeElement;
-          if (K.u && K.idx === null && K.v !== 'edit' && (!ae || (ae.id !== 'q' && !dom.fb.contains(ae) && !dom.db.contains(ae)))) render();
+          const ae = document.activeElement; if (K.u && K.idx === null && K.v !== 'edit' && (!ae || (ae.id !== 'q' && !dom.fb.contains(ae) && !dom.db.contains(ae)))) render();
         }
       }
       ok = true;
     } catch { ok = false; }
     finally { syncing = false; const nxt = needSync; needSync = 0; if (nxt) setTimeout(() => syn(nxt === 2), 0); }
-    msg(ok ? '' : 'offline');
-    return ok;
+    msg(ok ? '' : 'offline'); return ok;
   }
 
   /* State & Helpers */
@@ -199,19 +151,15 @@
     HARD.shs.forEach(s => { if (!seen.has(s)) K.db.skema.push([s, K.cols[s].join(','), K.vis[s].join(','), K.cols[s].join(',')]); });
     const nextShs = [];
     K.db.skema.forEach(r => {
-      const sh = S2(r[0]);
-      if (!sh || nextShs.includes(sh)) return;
-      nextShs.push(sh);
-      const oldCols = (K.cols[sh] || ['id', 'nama', 'ket']).slice();
-      const [nc, nv, nf] = [1, 2, 3].map(i => String(r[i] || '').split(',').map(S2).filter(Boolean));
+      const sh = S2(r[0]); if (!sh || nextShs.includes(sh)) return; nextShs.push(sh);
+      const oldCols = (K.cols[sh] || ['id', 'nama', 'ket']).slice(), [nc, nv, nf] = [1, 2, 3].map(i => String(r[i] || '').split(',').map(S2).filter(Boolean));
       K.cols[sh] = nc.length ? nc : oldCols;
       K.vis[sh] = nv.filter(x => K.cols[sh].includes(x)); if (!K.vis[sh].length) K.vis[sh] = K.cols[sh].slice(0, 3);
       K.fvis[sh] = nf.filter(x => K.cols[sh].includes(x)); if (!K.fvis[sh].length) K.fvis[sh] = K.cols[sh].slice();
       K.db[sh] = remapRows(K.db[sh] || [], oldCols, K.cols[sh]).map(dr => { const row = dr.slice(0, K.cols[sh].length); while (row.length < K.cols[sh].length) row.push(''); return row; });
     });
     HARD.shs.forEach(s => { if (!nextShs.includes(s)) nextShs.push(s); });
-    K.shs = nextShs;
-    if (!K.shs.includes(K.cur)) K.cur = K.shs[0];
+    K.shs = nextShs; if (!K.shs.includes(K.cur)) K.cur = K.shs[0];
   }
 
   const S2 = s => String(s || '').trim().toLowerCase();
@@ -221,13 +169,10 @@
   const isSafeUrl = u => /^(https?:\/\/|data:(image|application|text)\/[a-zA-Z0-9.\-_+]+;base64,)/i.test(String(u || '').trim());
 
   const cols = (s = K.cur) => K.cols[s] || [], cI = (s, k) => cols(s).indexOf(k), cV = (r, s, k) => { const i = cI(s, k); return (r && i > -1 && r[i] !== undefined) ? String(r[i]) : ''; };
-  const vis = (s = K.cur) => (K.vis[s] || cols(s)).filter(c => cols(s).includes(c));
-  const fvis = (s = K.cur) => ((K.fvis?.[s]?.length) ? K.fvis[s] : cols(s)).filter(c => cols(s).includes(c));
+  const vis = (s = K.cur) => (K.vis[s] || cols(s)).filter(c => cols(s).includes(c)), fvis = (s = K.cur) => ((K.fvis?.[s]?.length) ? K.fvis[s] : cols(s)).filter(c => cols(s).includes(c));
 
-  const TRXM = { penjualan: 'produk_jual', pembelian: 'produk_beli' };
-  const isTrx = (s = K.cur) => Boolean(TRXM[s]), trxIdOf = (t, r) => cV(r, t, `id${t}`) || r?.[0] || '', isOpenStatus = st => ['draft', 'revisi'].includes(S2(st));
-  const childOf = s => TRXM[s] || null, parentOf = s => s === 'produk_jual' ? 'penjualan' : (s === 'produk_beli' ? 'pembelian' : null);
-  const fkCol = s => s === 'produk_jual' ? 'idpenjualan' : (s === 'produk_beli' ? 'idpembelian' : (s === 'cicil' ? 'idpenjualan' : null));
+  const TRXM = { penjualan: 'produk_jual', pembelian: 'produk_beli' }, isTrx = (s = K.cur) => Boolean(TRXM[s]), trxIdOf = (t, r) => cV(r, t, `id${t}`) || r?.[0] || '', isOpenStatus = st => ['draft', 'revisi'].includes(S2(st));
+  const childOf = s => TRXM[s] || null, parentOf = s => s === 'produk_jual' ? 'penjualan' : (s === 'produk_beli' ? 'pembelian' : null), fkCol = s => s === 'produk_jual' ? 'idpenjualan' : (s === 'produk_beli' ? 'idpembelian' : (s === 'cicil' ? 'idpenjualan' : null));
   const STOCK_SHEETS = ['produk_jual', 'produk_beli', 'ecer'], NO_ADD = ['penjualan', 'pembelian', 'produk_jual', 'produk_beli', 'cicil', 'ecer'], GEO_RE = /alamat|lokasi/i;
   const EXEMPT = ['back', 'menu', 'q', 'dir', 'grid', 'closemsg', 'more', 'reset-db', 'add', 'df-today', 'df-clear', 'login', 'reg', 'bypass', 'v-dash', 'v-kas', 'v-shop', 'logout', 'scan', 'stop-scan', 'theme', 'refresh'];
 
@@ -447,7 +392,7 @@
     if (!K.u) { dom.fb.innerHTML = '<input placeholder="user" autocomplete="off" data-f="user"><input type="password" placeholder="password" data-f="password">'; addFooter('login', 'login'); addFooter('reg', 'register'); addFooter('bypass', 'bypass admin'); return; }
     if (K.cur === 'cms' && K.v === 'cms_detail') {
       const r = K.db.cms?.[K.idx] || [], g = k => cV(r, 'cms', k), foto = isSafeUrl(g('foto')) ? g('foto') : '', file = g('file');
-      dom.fb.innerHTML = `<b>${esc(g('judul') || '-')}</b><small>${esc(g('date'))} ${g('user') ? '| ' + esc(g('user')) : ''} ${g('kategori') ? '| ' + esc(g('kategori')) : ''} ${g('status') ? '| [' + esc(g('status')) + ']' : ''}</small><p>${esc(g('konten'))}</p>${foto ? `<img src="${esc(foto)}" alt="cms"><br>` : ''}${file ? `<button data-a="dl-cms-file">unduh lampiran</button><br>` : ''}`;
+      dom.fb.innerHTML = `<b>${esc(g('judul') || '-')}</b><small>${esc([g('date'), g('user'), g('kategori'), g('status') && '[' + g('status') + ']'].filter(Boolean).join(' | '))}</small><p>${esc(g('konten'))}</p>${foto ? `<img src="${esc(foto)}" alt="cms">` : ''}`;
       addFooter('back', '<'); if (file) addFooter('dl-cms-file', 'unduh file'); addFooter('edit-cms', 'edit'); renderNavFooters(); return;
     }
     const c = cols(), bypassAdd = K.idx === -1 && ['produk', 'kas', 'skema'].includes(K.cur), formCols = bypassAdd ? fvis() : fvis().filter(col => hasAccess(col, K.cur)), row = (K.idx !== null && K.idx >= 0) ? (K.db[K.cur][K.idx] || []) : [], stVal = S2(cV(row, K.cur, 'status')), isOpen = isTrx() && isOpenStatus(stVal), isDraft = isTrx() && stVal === 'draft', itemEditable = K.idx === -1 || canEditTrxItem(K.cur, row);
@@ -478,15 +423,13 @@
 
   const renderList = isBulkEdit => {
     msg();
-    const c = cols(), vCols = vis(), rows = K.db[K.cur] || [], matched = queryRows(), km = kontakMap(), vIdxs = c.map((col, i) => vCols.includes(col) ? i : -1).filter(i => i !== -1), eff = vIdxs.length ? vIdxs : [0], imgI = cI(K.cur, 'foto') !== -1 ? cI(K.cur, 'foto') : cI(K.cur, 'foto_url'), cmsFotoI = K.cur === 'cms' ? cI('cms', 'foto') : -1, limit = Math.min(K.page * 25, matched.length);
-    const addThumb = (el, src, alt) => { const im = document.createElement('img'); im.src = src; im.alt = alt; im.onerror = () => im.remove(); el.appendChild(im); };
+    const c = cols(), vCols = vis(), rows = K.db[K.cur] || [], matched = queryRows(), km = kontakMap(), vIdxs = c.map((col, i) => vCols.includes(col) ? i : -1).filter(i => i !== -1), eff = vIdxs.length ? vIdxs : [0], imgI = cI(K.cur, 'foto') !== -1 ? cI(K.cur, 'foto') : cI(K.cur, 'foto_url'), limit = Math.min(K.page * 25, matched.length);
     for (let m = 0; m < limit; m++) {
       const trg = matched[m], r = rows[trg] || [], el = document.createElement('div'); el.dataset.idx = trg;
       if (isBulkEdit) { el.contentEditable = 'plaintext-only'; if (!el.isContentEditable) el.contentEditable = 'true'; el.textContent = r.join('|'); }
       else {
-        if (K.grid && imgI !== -1 && isSafeUrl(r[imgI])) addThumb(el, r[imgI], 'prod');
-        if (cmsFotoI !== -1 && isSafeUrl(r[cmsFotoI])) { addThumb(el, r[cmsFotoI], 'cms'); el.appendChild(document.createTextNode(' ')); }
-        el.appendChild(document.createTextNode(eff.map(i => { const val = r[i]; if (!val || (K.cur === 'cms' && i === cmsFotoI)) return ''; if (c[i] === 'idkontak') return resolveKontakName(val, km); return c[i] === 'konten' ? String(val).replace(/\s+/g, ' ').slice(0, 50) + '...' : val; }).filter(Boolean).join(' ') || '-'));
+        if ((K.grid || K.cur === 'cms') && imgI !== -1 && isSafeUrl(r[imgI])) { const im = document.createElement('img'); im.src = r[imgI]; im.alt = ''; im.onerror = () => im.remove(); el.appendChild(im); if (!K.grid) el.appendChild(document.createTextNode(' ')); }
+        el.appendChild(document.createTextNode(eff.map(i => { const val = r[i]; if (!val || i === imgI) return ''; if (c[i] === 'idkontak') return resolveKontakName(val, km); return c[i] === 'konten' ? String(val).replace(/\s+/g, ' ').slice(0, 50) + '...' : val; }).filter(Boolean).join(' ') || '-'));
       }
       dom.ls.appendChild(el);
     }
