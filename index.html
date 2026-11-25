@@ -113,6 +113,15 @@
     const idx = d.map(c => s.indexOf(c));
     return rows.map(r => idx.map((si, di) => si !== -1 ? (r[si] ?? '') : (r[di] ?? '')));
   };
+  const dedupeRows = rows => {
+    const map = new Map();
+    (Array.isArray(rows) ? rows : []).forEach(r => {
+      if (!Array.isArray(r)) return;
+      const k = S2(r[0]);
+      if (k) map.set(k, r);
+    });
+    return [...map.values()];
+  };
 
   async function syn(force = false) {
     if (!navigator.onLine || !db) return false;
@@ -135,7 +144,7 @@
       if (toPull.length && !(await idbOp('mut', 'readonly', s => s.getAll(), [])).length) {
         const b = await req({ a: 'pull_batch', reqs: toPull, tn: K.shs, cols: K.cols });
         if (b.ok && Array.isArray(b.results)) {
-          b.results.forEach(x => { const name = K.shs[x?.t]; if (!name || !x?.v) return; ver[x.t] = x.v; if (!K.cols[name] && x.cols?.length) K.cols[name] = x.cols; K.db[name] = remapRows(x.r || [], x.cols, K.cols[name]); });
+          b.results.forEach(x => { const name = K.shs[x?.t]; if (!name || !x?.v) return; ver[x.t] = x.v; if (!K.cols[name] && x.cols?.length) K.cols[name] = x.cols; K.db[name] = dedupeRows(remapRows(x.r || [], x.cols, K.cols[name])); });
           applySchemaTable(); L.vs = JSON.stringify(ver); persist(); bc.postMessage('synced'); safeRender();
         }
       }
@@ -159,7 +168,7 @@
       K.cols[sh] = nc.length ? nc : oldCols;
       K.vis[sh] = nv.filter(x => K.cols[sh].includes(x)); if (!K.vis[sh].length) K.vis[sh] = K.cols[sh].slice(0, 3);
       K.fvis[sh] = nf.filter(x => K.cols[sh].includes(x)); if (!K.fvis[sh].length) K.fvis[sh] = K.cols[sh].slice();
-      K.db[sh] = remapRows(K.db[sh] || [], oldCols, K.cols[sh]).map(dr => { const row = dr.slice(0, K.cols[sh].length); while (row.length < K.cols[sh].length) row.push(''); return row; });
+      K.db[sh] = dedupeRows(remapRows(K.db[sh] || [], oldCols, K.cols[sh]).map(dr => { const row = dr.slice(0, K.cols[sh].length); while (row.length < K.cols[sh].length) row.push(''); return row; }));
     });
     HARD.shs.forEach(s => { if (!nextShs.includes(s)) nextShs.push(s); });
     K.shs = nextShs; if (!K.shs.includes(K.cur)) K.cur = K.shs[0];
@@ -175,7 +184,7 @@
   const isTrx = s => s === 'penjualan' || s === 'pembelian', trxIdOf = (t, r) => cV(r, t, `id${t}`) || r?.[0] || '', isOpenSt = st => ['draft', 'revisi'].includes(S2(st));
   const STOCK_SHEETS = ['produk_jual', 'produk_beli', 'ecer'], NO_ADD = ['penjualan', 'pembelian', 'produk_jual', 'produk_beli', 'cicil', 'ecer'], GEO_RE = /alamat|lokasi/i, FOTO_RE = /foto/i, DATE_RE = /date|tanggal/i;
   const EXEMPT = ['back', 'menu', 'q', 'dir', 'grid', 'closemsg', 'more', 'reset-db', 'add', 'df-today', 'df-clear', 'login', 'reg', 'bypass', 'v-dash', 'v-kas', 'v-shop', 'logout', 'scan', 'stop-scan', 'theme', 'refresh'];
-  const genId = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + Math.random().toString(36).slice(2, 5).padEnd(3, '0'); };
+  const genId = (sh = K.cur) => { const d = new Date(), used = new Set((K.db[sh] || []).map(r => S2(r[0]))); let id = ''; do { id = String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + Math.random().toString(36).slice(2, 5).padEnd(3, '0'); } while (used.has(S2(id))); return id; };
   const fmtNum = n => N(n).toLocaleString('id-ID'), today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10), msg = t => { dom.msg.hidden = !t; dom.msg.textContent = t || ''; };
   const setTheme = t => { const mode = t || L.theme || (W.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); if (t) L.theme = mode; document.documentElement.style.colorScheme = mode; document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'dark' ? '#000' : '#fff'); return mode; };
   const qForm = sel => sel instanceof RegExp ? [...dom.fb.querySelectorAll('[data-col]')].find(i => sel.test(i.dataset.col)) : (sel ? dom.fb.querySelector(`[data-col="${CSS.escape(sel)}"]`) : [...dom.fb.querySelectorAll('[data-col]')]);
@@ -478,14 +487,14 @@
         if (rules.includes('wajibstok') && ['produk_jual', 'ecer'].includes(K.cur)) { const pRow = findMasterProd(row, K.cur), same = oldRow && S2(cV(oldRow, K.cur, 'idproduk')) === S2(valOf('idproduk')), need = N(valOf('qty')) - (same ? N(cV(oldRow, K.cur, 'qty')) : 0); if (pRow && need > N(cV(pRow, 'produk', 'stok'), true)) return msg('stok kurang'); }
         const [pType, fk] = (!isTrx(K.cur) && REL[K.cur]) ? REL[K.cur] : [null, null];
         if (pType && K.idx === -1) {
-          if (!K.parent || K.parent.type !== pType) K.parent = getOpenTrx(pType) || { type: pType, id: genId(), open: true };
+          if (!K.parent || K.parent.type !== pType) K.parent = getOpenTrx(pType) || { type: pType, id: genId(pType), open: true };
           if (!(K.db[pType] || []).some(r => S2(trxIdOf(pType, r)) === S2(K.parent.id))) { const pCols = cols(pType), newP = new Array(pCols.length).fill(''); newP[Math.max(0, pCols.indexOf(`id${pType}`))] = K.parent.id; pCols.forEach((col, i) => { if (DATE_RE.test(col)) newP[i] = today(); else if (col === 'user') newP[i] = K.u || 'admin'; else if (col === 'status') newP[i] = 'draft'; }); (K.db[pType] = K.db[pType] || []).push(newP); save(newP, pType, 2); }
           const fkI = c.indexOf(fk); if (fkI !== -1) row[fkI] = K.parent.id;
         }
         if (!row[0]) row[0] = genId();
         if (isTrx(K.cur)) { const sI = cI(K.cur, 'status'), net = trxNet(K.cur, row), paid = paidOf(K.cur, row), kId = cV(row, K.cur, 'idkontak'); if (sI > -1) row[sI] = net <= 0 ? 'draft' : paid >= net ? 'lunas' : kId ? 'piutang' : 'draft'; if ((row[sI] === 'piutang' || (net > 0 && paid < net)) && cI(K.cur, 'idkontak') !== -1 && !kId) return msg('piutang butuh kontak'); }
         if (K.idx === -1) { syncMasterProduk(K.cur, null, row); (K.db[K.cur] = K.db[K.cur] || []).push(row); save(row, K.cur, 2); }
-        else if (K.idx >= 0) { syncMasterProduk(K.cur, oldRow, row); if (oldRow && oldRow[0] !== row[0]) save(oldRow, K.cur, 0); K.db[K.cur][K.idx] = row; save(row, K.cur, 1); }
+        else if (K.idx >= 0) { syncMasterProduk(K.cur, oldRow, row); if (oldRow && S2(oldRow[0]) !== S2(row[0])) save(oldRow, K.cur, 0); K.db[K.cur][K.idx] = row; save(row, K.cur, 1); }
         if (K.cur === 'skema') { if (oldRow?.[0] && oldRow[0] !== row[0] && !HARD.shs.includes(S2(oldRow[0]))) save([S2(oldRow[0])], S2(oldRow[0]), -1); applySchemaTable(); syn(true); }
         persist(); if (pType && K.parent?.id) syncTrx(pType, false);
         const savedTrxId = isTrx(K.cur) ? trxIdOf(K.cur, row) : null, wasPenjualan = K.cur === 'penjualan';
@@ -507,7 +516,18 @@
     rawbt: () => { if (!K.receiptRaw) return; const lines = K.receiptRaw.split(/\r?\n/), sepIdx = lines.lastIndexOf('-'.repeat(32)), escpos = '\x1B\x40' + lines.map((l, i) => ((i < 4 || (sepIdx > 0 && i > sepIdx)) ? '\x1B\x61\x01' + l.trim() : '\x1B\x61\x00' + l)).join('\r\n') + '\x1B\x61\x00\r\n\r\n\r\n', u = encodeURIComponent(escpos); W.location.href = /Android/i.test(navigator.userAgent) ? `intent:${u}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;` : `rawbt:${u}`; },
     jpg: () => { if (!K.receiptRaw) return; const lines = K.receiptRaw.split(/\r?\n/), lh = 18, font = '13px monospace', mctx = document.createElement('canvas').getContext('2d'); mctx.font = font; const w = Math.ceil(Math.max(0, ...lines.map(l => mctx.measureText(l).width))) || 280, h = lines.length * lh + 4, can = document.createElement('canvas'); can.width = w; can.height = h; const ctx = can.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#000'; ctx.font = font; ctx.textBaseline = 'top'; lines.forEach((l, i) => ctx.fillText(l, 0, i * lh + 2)); can.toBlob(blob => { if (!blob) return; const dlPng = () => { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = `nota_${Date.now()}.png`; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(u); }, 500); }; try { navigator.clipboard && W.ClipboardItem ? navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).catch(dlPng) : dlPng(); } catch { dlPng(); } }, 'image/png'); },
     'reset-db': async () => { if (K.conf !== 'reset-db') { K.conf = 'reset-db'; return msg('reset? klik lagi'); } K.conf = null; idbMut(s => s.clear(), 'kv'); idbMut(s => s.clear(), 'mut'); K.shs.forEach(s => K.db[s] = []); applySchemaTable(); L.vs = '[]'; persist(); render(); await syn(true); render(); },
-    'save-bulk': () => { const n = cols().length; dom.ls.querySelectorAll('[data-idx]').forEach(div => { const idx = parseInt(div.dataset.idx, 10); if (isNaN(idx) || !K.db[K.cur][idx]) return; const p = div.textContent.split('|').map(s => s.trim()); while (p.length < n) p.push(''); K.db[K.cur][idx] = p.slice(0, n); save(K.db[K.cur][idx], K.cur, 1); }); if (K.cur === 'skema') applySchemaTable(); persist(); syn(true); setView('list', null); render(); },
+    'save-bulk': () => {
+      const n = cols().length, updates = [], seen = new Set();
+      for (const div of dom.ls.querySelectorAll('[data-idx]')) {
+        const idx = parseInt(div.dataset.idx, 10); if (isNaN(idx) || !K.db[K.cur][idx]) continue;
+        const p = div.textContent.split('|').map(s => s.trim()); while (p.length < n) p.push('');
+        const next = p.slice(0, n), pk = S2(next[0]); if (!pk) return msg('id wajib diisi');
+        if (seen.has(pk) || (K.db[K.cur] || []).some((r, i) => i !== idx && !dom.ls.querySelector(`[data-idx="${i}"]`) && S2(r[0]) === pk)) return msg('id duplikat: ' + next[0]);
+        seen.add(pk); updates.push([idx, next]);
+      }
+      updates.forEach(([idx, next]) => { const old = K.db[K.cur][idx]; if (old && S2(old[0]) !== S2(next[0])) save(old, K.cur, 0); K.db[K.cur][idx] = next; save(next, K.cur, 1); });
+      if (K.cur === 'skema') applySchemaTable(); persist(); syn(true); setView('list', null); render();
+    },
     gimg: () => { const q = qForm('namaproduk')?.value || qForm('nama')?.value || dom.q.value || ''; if (q) W.open('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(q), '_blank', 'noopener,noreferrer'); },
     navigasi: () => { const loc = (qForm(GEO_RE)?.value || '').trim(); if (!loc) return; /Android|iPhone|iPad/i.test(navigator.userAgent) ? (W.location.href = `geo:${loc}?q=${encodeURIComponent(loc)}`) : W.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(loc)}`, '_blank', 'noopener,noreferrer'); },
     gps: () => { const trg = qForm(GEO_RE); if (trg && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { trg.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => msg('gps err'), { enableHighAccuracy: true, timeout: 5000 }); },
@@ -576,7 +596,15 @@
       readFile(file, 'readAsText', text => {
         const lines = text.split(/\r?\n/).filter(Boolean); if (!lines.length) return;
         const sep = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ','), c = cols(), start = lines[0].split(sep).map(S2).every(h => c.includes(h)) ? 1 : 0;
-        for (let i = start; i < lines.length; i++) { const parts = lines[i].split(sep).map(s => s.trim()), row = new Array(c.length).fill(''); for (let j = 0; j < Math.min(parts.length, c.length); j++) row[j] = parts[j]; if (!row[0]) row[0] = genId(); (K.db[K.cur] = K.db[K.cur] || []).push(row); save(row, K.cur, 2); }
+        const idxMap = new Map((K.db[K.cur] = K.db[K.cur] || []).map((r, i) => [S2(r[0]), i]));
+        for (let i = start; i < lines.length; i++) {
+          const parts = lines[i].split(sep).map(s => s.trim()), row = new Array(c.length).fill('');
+          for (let j = 0; j < Math.min(parts.length, c.length); j++) row[j] = parts[j];
+          if (!row[0]) row[0] = genId();
+          const pk = S2(row[0]);
+          if (idxMap.has(pk)) { K.db[K.cur][idxMap.get(pk)] = row; save(row, K.cur, 1); }
+          else { idxMap.set(pk, K.db[K.cur].length); K.db[K.cur].push(row); save(row, K.cur, 2); }
+        }
         if (K.cur === 'skema') applySchemaTable(); persist(); syn(true); render();
       });
     } else {
