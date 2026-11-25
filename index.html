@@ -596,7 +596,16 @@
     cicil: () => { if (!(K.idx >= 0)) return; const r = K.db[K.cur][K.idx], pid = trxIdOf('penjualan', r); if (!pid) return; if (!K.shs.includes('cicil')) K.shs.push('cicil'); const rem = Math.max(0, trxNet('penjualan', r) - paidOf('penjualan', r)); K.cur = 'cicil'; K.prefill = { idpenjualan: pid, idkontak: cV(r, 'penjualan', 'idkontak'), date: today(), user: K.u || 'admin', jumlah: rem > 0 ? String(rem) : '' }; setView('form', -1); render(); },
     'trx-rincian': () => { if (!(K.idx >= 0)) return; const pid = trxIdOf(K.cur, K.db[K.cur][K.idx]); if (pid) { K.parent = { type: K.cur, id: pid, open: true }; K.cur = childOf(K.cur); setView('list', null); render(); } },
     'show-nota': () => { const pid = (K.cur === 'penjualan' && K.idx >= 0) ? trxIdOf('penjualan', K.db.penjualan[K.idx]) : (K.parent?.type === 'penjualan' ? K.parent.id : trxIdOf('penjualan', K.db.penjualan?.[0])); if (pid) { K.receiptRaw = formatNota(pid); setView('nota', null); render(); } },
-    rawbt: () => { if (!K.receiptRaw) return; const u = encodeURIComponent(K.receiptRaw.trim() + '\r\n\r\n\r\n'); W.location.href = /Android/i.test(navigator.userAgent) ? `intent:${u}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;` : `rawbt:${u}`; },
+    rawbt: () => {
+      if (!K.receiptRaw) return;
+      const lines = K.receiptRaw.split(/\r?\n/), sepIdx = lines.lastIndexOf('-'.repeat(32));
+      const escpos = '\x1B\x40' + lines.map((l, i) => {
+        const isCenter = i < 4 || (sepIdx > 0 && i > sepIdx && !l.startsWith('Total Piutang'));
+        return (isCenter ? '\x1B\x61\x01' + l.trim() : '\x1B\x61\x00' + l);
+      }).join('\r\n') + '\x1B\x61\x00\r\n\r\n\r\n';
+      const u = encodeURIComponent(escpos);
+      W.location.href = /Android/i.test(navigator.userAgent) ? `intent:${u}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;` : `rawbt:${u}`;
+    },
     jpg: () => {
       if (!K.receiptRaw) return;
       const lines = K.receiptRaw.split(/\r?\n/), lh = 18, font = '13px monospace', mctx = document.createElement('canvas').getContext('2d'); mctx.font = font;
