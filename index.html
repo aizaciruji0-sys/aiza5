@@ -281,10 +281,10 @@
     if (N(val('diskon')) > 0) lines.push(lr('Diskon', '-' + fmtNum(val('diskon'))));
     lines.push(lr('Total', fmtNum(gTot)), lr('Bayar', fmtNum(paid)), lr(diff >= 0 ? 'Kembali' : 'Kurang', fmtNum(Math.abs(diff))), bar('-'));
     if (store.footer) lines.push(pad(store.footer));
-    const kId = val('idkontak'), kDisp = resolveKontakName(kId); if (kDisp) lines.push(fit(' ' + kDisp)); if (val('catatan')) lines.push(fit(' ' + val('catatan')));
+    const kId = val('idkontak'), kDisp = resolveKontakName(kId); if (kDisp) lines.push(pad(kDisp)); if (val('catatan')) lines.push(pad(val('catatan')));
     const cm = cicilMap(), debt = kId ? (K.db.penjualan || []).reduce((sum, r) => (S2(cV(r, 'penjualan', 'idkontak')) === S2(kId) && isUserVisible(r, 'penjualan')) ? sum + Math.max(0, trxNet('penjualan', r) - paidOf('penjualan', r, cm)) : sum, 0) : 0;
     if (debt > 0) lines.push(lr('Total Piutang', '-' + fmtNum(debt)));
-    return lines.map(fit).join('\n');
+    return lines.map(l => String(l || '').slice(0, WL)).join('\n');
   };
 
   const syncTrx = (t, forceStatus = false) => {
