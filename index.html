@@ -8,7 +8,6 @@
   <title>APEX</title>
   <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22APEX%22%2C%22short_name%22%3A%22APEX%22%2C%22start_url%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23000000%22%2C%22theme_color%22%3A%22%23000000%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%2520viewBox%3D'0%25200%2520512%2520512'%253E%253Crect%2520width%3D'512'%2520height%3D'512'%2520fill%3D'%2523000'%2F%253E%253Cpath%2520d%3D'M256%2520108L140%2520404h38l28-74h100l28%252074h38L256%2520108zm-38%2520190l38-102%252038%2520102h-76z'%2520fill%3D'%2523fff'%2F%253E%253C%2Fsvg%3E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%20maskable%22%7D%5D%7D">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23000'/%3E%3Cpath d='M256 108L140 404h38l28-74h100l28 74h38L256 108zm-38 190l38-102 38 102h-76z' fill='%23fff'/%3E%3C/svg%3E">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23000'/%3E%3Cpath d='M256 108L140 404h38l28-74h100l28 74h38L256 108zm-38 190l38-102 38 102h-76z' fill='%23fff'/%3E%3C/svg%3E">
   <style>
     :root{color-scheme:light dark;--g:4px}:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
     *{box-sizing:border-box;margin:0;padding:0;border-radius:0!important;transition:none!important;animation:none!important;box-shadow:none!important}
@@ -31,7 +30,7 @@
     body[data-grid="1"] #list>div{flex-direction:column;align-items:flex-start;padding:4px}
     body[data-grid="1"] #list img{display:block;width:100%;height:85px;object-fit:cover;margin-bottom:4px}
     #tape{width:58mm;max-width:100%;white-space:pre;overflow-x:auto;font:11px/1.25 monospace;border:1px dashed;padding:4px}
-    @media print{body{padding:0}header,footer,#tools,#msg{display:none!important}#tape{width:58mm!important;max-width:none;overflow:visible;border:none;padding:0}}
+    @media print{body{padding:0}header,footer,#tools,#msg{display:none!important}#tape{max-width:none;overflow:visible;border:none;padding:0}}
   </style>
   <script>try{if(localStorage.theme)document.documentElement.dataset.theme=localStorage.theme;}catch(e){}</script>
 </head>
@@ -44,7 +43,7 @@
     <div id="box-form"></div><div id="box-dash"></div><div id="box-nota"><pre id="tape"></pre></div><div id="list"></div>
   </main>
   <footer id="ft"></footer>
-  <input id="f-cam" type="file" accept="image/*" capture="environment" hidden><input id="f-img" type="file" accept="image/*" hidden><input id="f-doc" type="file" hidden><input id="f-imp" type="file" accept=".tsv,.txt,.csv" hidden>
+  <input id="f-up" type="file" hidden>
   <script>
   'use strict';
   const HARD = {
@@ -80,16 +79,16 @@
   HARD.db.skema = HARD.shs.map(s => [s, HARD.cols[s].join(','), HARD.vis[s].join(','), HARD.cols[s].join(',')]);
 
   const W = window, L = localStorage, $ = id => document.getElementById(id);
-  let db = null, syncing = false, syncTimer = null, scanStream = null, scanTimer = null, seq = 0, needSync = 0;
-  const dom = { h: $('h'), q: $('q'), msg: $('msg'), tools: $('tools'), scanBox: $('scan-box'), scanVid: $('scan-vid'), fCam: $('f-cam'), fImg: $('f-img'), fDoc: $('f-doc'), fImp: $('f-imp'), sh: $('sh-sel'), st: $('st-sel'), act: $('act-sel'), fb: $('box-form'), db: $('box-dash'), ls: $('list'), ft: $('ft'), tape: $('tape'), bn: $('box-nota') };
+  let db = null, syncing = false, syncTimer = null, scanStream = null, scanTimer = null, seq = 0, needSync = 0, upMode = '';
+  const dom = { h: $('h'), q: $('q'), msg: $('msg'), tools: $('tools'), sh: $('sh-sel'), st: $('st-sel'), act: $('act-sel'), fb: $('box-form'), db: $('box-dash'), ls: $('list'), ft: $('ft'), bn: $('box-nota') };
 
   /* IndexedDB & Sync */
   const initDB = cb => { try { const rq = indexedDB.open('apex_db', 1); rq.onupgradeneeded = e => { const d = e.target.result; ['kv', 'mut'].forEach(s => !d.objectStoreNames.contains(s) && d.createObjectStore(s, s === 'mut' ? { keyPath: 'i' } : undefined)); }; rq.onsuccess = e => { db = e.target.result; cb?.(); }; rq.onerror = () => cb?.(); } catch { cb?.(); } };
-  const idbOp = (st, mode, fn, fb = null) => new Promise(res => { if (!db) return res(fb); try { const r = fn(db.transaction(st, mode).objectStore(st)); if (r && 'onsuccess' in r) { r.onsuccess = () => res(r.result ?? fb); r.onerror = () => res(fb); } else res(fb); } catch { res(fb); } });
-  const idbGet = (k, st = 'kv') => idbOp(st, 'readonly', s => s.get(k)), idbAll = (st = 'mut') => idbOp(st, 'readonly', s => s.getAll(), []);
+  const idbOp = (st, mode, fn, fb = null) => new Promise(res => { if (!db) return res(fb); try { const r = fn(db.transaction(st, mode).objectStore(st)); r.onsuccess = () => res(r.result ?? fb); r.onerror = () => res(fb); } catch { res(fb); } });
+  const idbGet = (k, st = 'kv') => idbOp(st, 'readonly', s => s.get(k), null);
+  const idbAll = (st = 'mut') => idbOp(st, 'readonly', s => s.getAll(), []);
   const idbPut = (val, k = null, st = 'kv', done = null) => { if (!db) return done?.(); try { const tx = db.transaction(st, 'readwrite'), s = tx.objectStore(st); st === 'kv' && k != null ? s.put(val, k) : s.put(val); if (done) tx.oncomplete = done; } catch { done?.(); } };
-  const idbDel = keys => { if (db && keys?.length) try { const s = db.transaction('mut', 'readwrite').objectStore('mut'); keys.forEach(k => s.delete(k)); } catch {} };
-  const idbClear = st => { if (db) try { db.transaction(st, 'readwrite').objectStore(st).clear(); } catch {} };
+  const idbMut = (fn, st = 'mut') => { if (db) try { fn(db.transaction(st, 'readwrite').objectStore(st)); } catch {} };
 
   const save = (row, tn = K.cur, y = 2) => idbPut({ i: `${Date.now().toString(36)}_${(++seq).toString(36).padStart(4, '0')}`, tn, y, r: Array.isArray(row) ? row.slice() : Object.values(row) }, null, 'mut', () => { clearTimeout(syncTimer); syncTimer = setTimeout(() => syn(false), 80); });
 
@@ -117,7 +116,7 @@
     try {
       if (force) L.vs = '[]';
       const ver = JSON.parse(L.vs || '[]'), queued = await idbAll();
-      if (queued.length) { const pr = await req({ a: 'push', m: queued, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl }); if (!pr.ok) throw 0; idbDel(queued.map(x => x.i)); }
+      if (queued.length) { const pr = await req({ a: 'push', m: queued, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl }); if (!pr.ok) throw 0; idbMut(s => queued.forEach(x => s.delete(x.i))); }
       let m = (force && await req({ a: 'sync_gas', tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl })) || null;
       if (!m?.v) m = await req({ a: 'manifest', tn: K.shs, cols: K.cols });
       if (!m?.v) throw 0;
@@ -143,7 +142,7 @@
 
   /* State & Helpers */
   const dl = (content, fileName, mime = 'text/plain;charset=utf-8') => { const u = URL.createObjectURL(new Blob([content], { type: mime })), a = document.createElement('a'); a.href = u; a.download = fileName; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(u); }, 400); };
-  const K = { u: L.u || '', cur: 'penjualan', v: 'dash', idx: null, page: 1, sort: 0, dir: 1, grid: false, conf: null, prefill: null, parent: null, receiptRaw: '', prodIdx: null, slice: '', df: { u: '', from: '', to: '', kat: '' }, shs: [...HARD.shs], cols: JSON.parse(JSON.stringify(HARD.cols)), vis: JSON.parse(JSON.stringify(HARD.vis)), fvis: {}, db: JSON.parse(JSON.stringify(HARD.db)), ret: null, prev: null, writing: false };
+  const K = { u: L.u || '', cur: 'penjualan', v: 'dash', idx: null, page: 1, sort: 0, dir: 1, grid: false, conf: null, prefill: null, parent: null, receiptRaw: '', slice: '', df: { u: '', from: '', to: '', kat: '' }, shs: [...HARD.shs], cols: JSON.parse(JSON.stringify(HARD.cols)), vis: JSON.parse(JSON.stringify(HARD.vis)), fvis: {}, db: JSON.parse(JSON.stringify(HARD.db)), ret: null, prev: null, writing: false };
 
   function applySchemaTable() {
     if (!Array.isArray(K.db.skema)) K.db.skema = [];
@@ -163,46 +162,48 @@
   }
 
   const S2 = s => String(s || '').trim().toLowerCase();
-  const N = v => { const n = parseFloat(String(v ?? '').replace(/[^\d.-]/g, '')); return (!isFinite(n) || n < 0) ? 0 : n; };
-  const Z = v => parseFloat(String(v ?? '').replace(/[^\d.-]/g, '')) || 0;
+  const N = (v, neg = false) => { const n = parseFloat(String(v ?? '').replace(/[^\d.-]/g, '')); return !isFinite(n) ? 0 : (neg ? n : Math.max(0, n)); };
   const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   const isSafeUrl = u => /^(https?:\/\/|data:(image|application|text)\/[a-zA-Z0-9.\-_+]+;base64,)/i.test(String(u || '').trim());
 
   const cols = (s = K.cur) => K.cols[s] || [], cI = (s, k) => cols(s).indexOf(k), cV = (r, s, k) => { const i = cI(s, k); return (r && i > -1 && r[i] !== undefined) ? String(r[i]) : ''; };
-  const vis = (s = K.cur) => (K.vis[s] || cols(s)).filter(c => cols(s).includes(c)), fvis = (s = K.cur) => ((K.fvis?.[s]?.length) ? K.fvis[s] : cols(s)).filter(c => cols(s).includes(c));
+  const visCols = (s = K.cur, isForm = false) => ((isForm && K.fvis?.[s]?.length) ? K.fvis[s] : (!isForm ? K.vis[s] : null) || cols(s)).filter(c => cols(s).includes(c));
 
-  const TRXM = { penjualan: 'produk_jual', pembelian: 'produk_beli' }, isTrx = (s = K.cur) => Boolean(TRXM[s]), trxIdOf = (t, r) => cV(r, t, `id${t}`) || r?.[0] || '', isOpenStatus = st => ['draft', 'revisi'].includes(S2(st));
-  const childOf = s => TRXM[s] || null, parentOf = s => s === 'produk_jual' ? 'penjualan' : (s === 'produk_beli' ? 'pembelian' : null), fkCol = s => s === 'produk_jual' ? 'idpenjualan' : (s === 'produk_beli' ? 'idpembelian' : (s === 'cicil' ? 'idpenjualan' : null));
+  const REL = { penjualan: ['produk_jual', 'idpenjualan'], pembelian: ['produk_beli', 'idpembelian'], produk_jual: ['penjualan', 'idpenjualan'], produk_beli: ['pembelian', 'idpembelian'], cicil: ['penjualan', 'idpenjualan'] };
+  const isTrx = (s = K.cur) => s === 'penjualan' || s === 'pembelian', trxIdOf = (t, r) => cV(r, t, `id${t}`) || r?.[0] || '';
   const STOCK_SHEETS = ['produk_jual', 'produk_beli', 'ecer'], NO_ADD = ['penjualan', 'pembelian', 'produk_jual', 'produk_beli', 'cicil', 'ecer'], GEO_RE = /alamat|lokasi/i;
   const EXEMPT = ['back', 'menu', 'q', 'dir', 'grid', 'closemsg', 'more', 'reset-db', 'add', 'df-today', 'df-clear', 'login', 'reg', 'bypass', 'v-dash', 'v-kas', 'v-shop', 'logout', 'scan', 'stop-scan', 'theme', 'refresh'];
 
   const genId = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + Math.random().toString(36).slice(2, 5).padEnd(3, '0'); };
   const fmtNum = n => N(n).toLocaleString('id-ID'), today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10), msg = t => { dom.msg.hidden = !t; dom.msg.textContent = t || ''; };
-  const getTheme = () => L.theme || (W.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  const applyTheme = t => { document.documentElement.dataset.theme = t; document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'dark' ? '#000' : '#fff'); };
+  const setTheme = t => {
+    const mode = t || L.theme || (W.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    if (t) L.theme = mode;
+    document.documentElement.dataset.theme = mode;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'dark' ? '#000' : '#fff');
+    return mode;
+  };
 
-  const fld = c => dom.fb.querySelector(`[data-col="${CSS.escape(c)}"]`), flds = () => [...dom.fb.querySelectorAll('[data-col]')], fldBy = re => flds().find(i => re.test(i.dataset.col)), formState = () => Object.fromEntries(flds().map(i => [i.dataset.col, i.value]));
-  const prodIdOf = p => S2(cV(p, 'produk', 'idproduk') || p?.[0]), prodMap = () => new Map((K.db.produk || []).map(p => [prodIdOf(p), p]).filter(([k]) => Boolean(k)));
-  const findMasterProd = (r, sh) => { if (!r) return null; const id = S2(cV(r, sh, 'idproduk')), nm = S2(cV(r, sh, 'namaproduk')); return (K.db.produk || []).find(p => (id && prodIdOf(p) === id) || (nm && S2(cV(p, 'produk', 'namaproduk')) === nm)) || null; };
-  const kontakMap = () => new Map((K.db.kontak || []).map(x => [S2(cV(x, 'kontak', 'idkontak') || x[0]), cV(x, 'kontak', 'nama') || x[0]]));
-  const resolveKontakName = (kId, km = null) => { if (!kId) return ''; if (km) return km.get(S2(kId)) || kId; const r = K.db.kontak?.find(x => S2(cV(x, 'kontak', 'idkontak') || x[0]) === S2(kId)); return r ? (cV(r, 'kontak', 'nama') || kId) : kId; };
+  const qForm = sel => sel instanceof RegExp ? [...dom.fb.querySelectorAll('[data-col]')].find(i => sel.test(i.dataset.col)) : (sel ? dom.fb.querySelector(`[data-col="${CSS.escape(sel)}"]`) : [...dom.fb.querySelectorAll('[data-col]')]);
+  const formState = () => Object.fromEntries(qForm().map(i => [i.dataset.col, i.value]));
+  const findMasterProd = (r, sh) => { if (!r) return null; const id = S2(cV(r, sh, 'idproduk')), nm = S2(cV(r, sh, 'namaproduk')); return (K.db.produk || []).find(p => { const pid = S2(cV(p, 'produk', 'idproduk') || p[0]); return (id && pid === id) || (nm && S2(cV(p, 'produk', 'namaproduk')) === nm); }) || null; };
+  const resolveKontakName = kId => { if (!kId) return ''; const r = K.db.kontak?.find(x => S2(cV(x, 'kontak', 'idkontak') || x[0]) === S2(kId)); return r ? (cV(r, 'kontak', 'nama') || kId) : kId; };
 
   /* Navigation & Access */
   const setView = (v, idx = null) => { if (dom.q?.value.trim()) { dom.q.value = ''; K.page = 1; } if (K.v !== v && idx === null) K.prev = { v: K.v, cur: K.cur, slice: K.slice }; K.v = v; K.idx = idx; K.conf = null; };
   const userRow = (u, role, pw) => cols('users').map(c => ({ user: u, role, password: pw }[c] ?? ''));
-  const getRole = () => K.u ? S2(cV(K.db.users?.find(r => S2(r[0]) === S2(K.u)), 'users', 'role') || 'user') : 'user', isAdmin = () => getRole() === 'admin';
+  const getRole = () => K.u ? S2(cV(K.db.users?.find(r => S2(r[0]) === S2(K.u)), 'users', 'role') || 'user') : 'user';
   const isUserVisible = (r, sh = K.cur) => {
-    if (isAdmin() || sh === 'produk') return true;
+    if (getRole() === 'admin' || sh === 'produk') return true;
     const uCol = cI(sh, 'user'); if (uCol !== -1) return S2(r[uCol]) === S2(K.u);
-    const pSh = parentOf(sh);
-    if (pSh) { const pRow = K.db[pSh]?.find(p => S2(trxIdOf(pSh, p)) === S2(cV(r, sh, fkCol(sh)))); return pRow ? isUserVisible(pRow, pSh) : true; }
+    if (!isTrx(sh) && REL[sh]) { const [pSh, fk] = REL[sh], pRow = K.db[pSh]?.find(p => S2(trxIdOf(pSh, p)) === S2(cV(r, sh, fk))); return pRow ? isUserVisible(pRow, pSh) : true; }
     return true;
   };
   const getRoleRules = () => K.u ? (K.db.roles?.find(r => S2(r[0]) === getRole())?.[2] || '').toLowerCase().split(',').map(S2).filter(Boolean) : [];
   const hasAccess = (k, s = K.cur) => {
     const key = S2(k);
     if (EXEMPT.includes(key) || key.startsWith('df-') || key.startsWith('ref-')) return true;
-    if (!K.u) return false; if (isAdmin()) return true;
+    if (!K.u) return false; if (getRole() === 'admin') return true;
     const hidden = (K.db.roles?.find(r => S2(r[0]) === getRole())?.[1] || '').toLowerCase();
     if (!hidden) return true;
     const list = hidden.split(',').map(S2), sh = S2(s);
@@ -210,21 +211,21 @@
   };
   const addFooter = (a, txt, sheet = K.cur, extra = '') => { if (hasAccess(a, sheet)) dom.ft.insertAdjacentHTML('beforeend', `<button data-a="${esc(a)}" ${extra}>${esc(txt)}</button> `); };
   const matchFilter = (u, d, meta, skipDate = false, qWords = [], globalScope = false) => {
-    const effU = (isAdmin() || globalScope) ? K.df.u : (K.u || '');
+    const effU = (getRole() === 'admin' || globalScope) ? K.df.u : (K.u || '');
     return (!effU || S2(u).includes(S2(effU))) && (skipDate || !K.df.from || String(d || '') >= K.df.from) && (skipDate || !K.df.to || String(d || '') <= K.df.to) && (!K.df.kat || S2(meta).includes(S2(K.df.kat))) && (!qWords.length || qWords.every(w => `${u} ${d} ${meta}`.toLowerCase().includes(w)));
   };
   const canEditTrxItem = (sh, row) => {
     if (!['produk_jual', 'produk_beli'].includes(sh)) return true;
-    const pType = parentOf(sh), fk = cV(row, sh, fkCol(sh)); if (!fk) return true;
-    const pRow = K.db[pType]?.find(p => S2(trxIdOf(pType, p)) === S2(fk));
-    return !pRow || isOpenStatus(cV(pRow, pType, 'status')) || hasAccess('edit_item_lunas', sh);
+    const [pType, fk] = REL[sh], fkVal = cV(row, sh, fk); if (!fkVal) return true;
+    const pRow = K.db[pType]?.find(p => S2(trxIdOf(pType, p)) === S2(fkVal));
+    return !pRow || ['draft', 'revisi'].includes(S2(cV(pRow, pType, 'status'))) || hasAccess('edit_item_lunas', sh);
   };
 
   /* Stok & Master Produk */
   const syncMasterProduk = (sh, oldRow, newRow) => {
     if (!STOCK_SHEETS.includes(sh)) return;
-    const m = sh === 'produk_beli' ? 1 : -1, si = cI('produk', 'stok'), hbI = cI('produk', 'hargabeli'), hjI = cI('produk', 'hargajual'), touched = new Map();
-    [{ r: oldRow, s: -m }, { r: newRow, s: m }].forEach(({ r, s }) => { const pRow = findMasterProd(r, sh); if (pRow && si > -1) { pRow[si] = String(Z(pRow[si]) + N(cV(r, sh, 'qty')) * s); touched.set(prodIdOf(pRow), pRow); } });
+    const m = sh === 'produk_beli' ? 1 : -1, si = cI('produk', 'stok'), hbI = cI('produk', 'hargabeli'), hjI = cI('produk', 'hargajual'), touched = new Set();
+    [{ r: oldRow, s: -m }, { r: newRow, s: m }].forEach(({ r, s }) => { const pRow = findMasterProd(r, sh); if (pRow && si > -1) { pRow[si] = String(N(pRow[si], true) + N(cV(r, sh, 'qty')) * s); touched.add(pRow); } });
     if (newRow) {
       const pRow = findMasterProd(newRow, sh);
       if (pRow) {
@@ -232,28 +233,28 @@
         const hb = cV(newRow, sh, 'hargabeli').trim(), hj = cV(newRow, sh, 'hargajual').trim(); let chg = false;
         if (hbI > -1 && hb !== '' && N(hb) !== N(pRow[hbI])) { pRow[hbI] = hb; chg = true; }
         if (hjI > -1 && hj !== '' && N(hj) !== N(pRow[hjI])) { pRow[hjI] = hj; chg = true; }
-        if (chg) touched.set(prodIdOf(pRow), pRow);
+        if (chg) touched.add(pRow);
       }
     }
     touched.forEach(pRow => save(pRow, 'produk', 1));
   };
 
-  /* Scanner */
-  const stopScan = () => { clearInterval(scanTimer); scanTimer = null; scanStream?.getTracks().forEach(t => t.stop()); scanStream = null; if (dom.scanVid) dom.scanVid.srcObject = null; dom.scanBox.hidden = true; };
+  /* Scanner (56 & 57) */
+  const stopScan = () => { clearInterval(scanTimer); scanTimer = null; scanStream?.getTracks().forEach(t => t.stop()); scanStream = null; const v = $('scan-vid'); if (v) v.srcObject = null; $('scan-box').hidden = true; };
   const startScan = () => {
     if (!('BarcodeDetector' in W)) return msg('kamera tidak didukung');
-    const det = new BarcodeDetector({ formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a'] });
+    const det = new BarcodeDetector({ formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a'] }), vid = $('scan-vid');
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(stream => {
-      scanStream = stream; dom.scanVid.srcObject = stream; dom.scanVid.play(); dom.scanBox.hidden = false;
-      scanTimer = setInterval(async () => { try { const codes = await det.detect(dom.scanVid); if (codes?.length) { stopScan(); dom.q.value = codes[0].rawValue; K.page = 1; render(); } } catch {} }, 250);
+      scanStream = stream; vid.srcObject = stream; vid.play(); $('scan-box').hidden = false;
+      scanTimer = setInterval(async () => { try { const codes = await det.detect(vid); if (codes?.length) { stopScan(); dom.q.value = codes[0].rawValue; K.page = 1; render(); } } catch {} }, 250);
     }).catch(() => msg('kamera tidak aktif'));
   };
 
   /* Transaksi & Nota */
   const calcItems = (t, id) => {
-    const ch = childOf(t); if (!ch) return { raw: 0, disc: 0, cogs: 0, pot: 0, items: [] };
+    const [ch, fk] = REL[t] || []; if (!ch) return { raw: 0, disc: 0, cogs: 0, pot: 0, items: [] };
     return (K.db[ch] || []).reduce((a, r) => {
-      if (S2(cV(r, ch, fkCol(ch))) !== S2(id)) return a;
+      if (S2(cV(r, ch, fk)) !== S2(id)) return a;
       const q = N(cV(r, ch, 'qty')), p = N(cV(r, ch, t === 'penjualan' ? 'hargajual' : 'hargabeli')), b = N(cV(r, ch, 'hargabeli')), s = N(cV(r, ch, 'hargajual')), d = N(cV(r, ch, 'diskon')), dLine = d > 0 ? (d < p ? d * q : d) : 0, dU = q > 0 ? dLine / q : 0;
       a.raw += q * p; a.disc += dLine; a.cogs += q * b; a.pot += q * s;
       a.items.push({ name: cV(r, ch, 'namaproduk') || 'item', id: cV(r, ch, 'idproduk'), q, p, dU, eff: Math.max(0, p - dU), tot: q * p - dLine });
@@ -261,9 +262,7 @@
     }, { raw: 0, disc: 0, cogs: 0, pot: 0, items: [] });
   };
   const trxNet = (t, r) => { const { raw, disc } = calcItems(t, trxIdOf(t, r)); return Math.max(0, raw - disc - N(cV(r, t, 'diskon'))); };
-  const cicilMap = () => (K.db.cicil || []).reduce((m, c) => { const id = S2(cV(c, 'cicil', 'idpenjualan')); m[id] = (m[id] || 0) + N(cV(c, 'cicil', 'jumlah')); return m; }, {});
-  const paidOf = (t, r, cm = null) => N(cV(r, t, 'bayar')) + (t === 'penjualan' ? ((cm || cicilMap())[S2(trxIdOf(t, r))] || 0) : 0);
-  const statusFor = (net, paid, kId) => net <= 0 ? 'draft' : paid >= net ? 'lunas' : kId ? 'piutang' : 'draft';
+  const paidOf = (t, r, filterDate = false, qW = []) => N(cV(r, t, 'bayar')) + (t === 'penjualan' ? (K.db.cicil || []).reduce((sum, c) => (S2(cV(c, 'cicil', 'idpenjualan')) === S2(trxIdOf(t, r)) && (!filterDate || matchFilter(cV(c, 'cicil', 'user'), cV(c, 'cicil', 'date'), '', false, qW))) ? sum + N(cV(c, 'cicil', 'jumlah')) : sum, 0) : 0);
 
   const formatNota = id => {
     const row = K.db.penjualan?.find(r => S2(trxIdOf('penjualan', r)) === S2(id)); if (!row) return '';
@@ -289,7 +288,7 @@
       if (kHp) lines.push(pad(kHp));
     }
     if (val('catatan')) lines.push(pad(val('catatan')));
-    const cm = cicilMap(), debt = kId ? (K.db.penjualan || []).reduce((sum, r) => (S2(cV(r, 'penjualan', 'idkontak')) === S2(kId) && isUserVisible(r, 'penjualan')) ? sum + Math.max(0, trxNet('penjualan', r) - paidOf('penjualan', r, cm)) : sum, 0) : 0;
+    const debt = kId ? (K.db.penjualan || []).reduce((sum, r) => (S2(cV(r, 'penjualan', 'idkontak')) === S2(kId) && isUserVisible(r, 'penjualan')) ? sum + Math.max(0, trxNet('penjualan', r) - paidOf('penjualan', r)) : sum, 0) : 0;
     if (debt > 0) lines.push(pad(`Total Piutang: -${fmtNum(debt)}`));
     return lines.map(l => String(l || '').slice(0, WL)).join('\n');
   };
@@ -297,39 +296,57 @@
   const syncTrx = (t, forceStatus = false) => {
     const id = K.parent?.id || (K.idx >= 0 ? trxIdOf(t, K.db[t]?.[K.idx]) : null), r = id && K.db[t]?.find(x => S2(trxIdOf(t, x)) === S2(id));
     if (!r) return;
-    const sI = cI(t, 'status'); if (sI > -1 && (forceStatus || r[sI] !== 'revisi')) r[sI] = statusFor(trxNet(t, r), paidOf(t, r), cV(r, t, 'idkontak'));
+    const sI = cI(t, 'status'), net = trxNet(t, r), paid = paidOf(t, r), kId = cV(r, t, 'idkontak');
+    if (sI > -1 && (forceStatus || r[sI] !== 'revisi')) r[sI] = net <= 0 ? 'draft' : paid >= net ? 'lunas' : kId ? 'piutang' : 'draft';
     persist(); save(r, t, 1);
   };
 
-  /* Cart Isolation */
-  const getOpenTrx = t => {
+  /* Cart Isolation & Cascade Delete */
+  const getOpenTrx = (t, mustHaveItems = false) => {
     if (!t) return null;
-    const rows = K.db[t] || [], u = S2(K.u || 'admin');
-    if (K.parent?.type === t) { const r = rows.find(x => S2(trxIdOf(t, x)) === S2(K.parent.id)); if (r && isUserVisible(r, t) && (K.parent.open || (S2(cV(r, t, 'user')) === u && isOpenStatus(cV(r, t, 'status'))))) return { type: t, id: trxIdOf(t, r), row: r }; }
-    const r = rows.find(x => S2(cV(x, t, 'user')) === u && isOpenStatus(cV(x, t, 'status')));
-    return r ? { type: t, id: trxIdOf(t, r), row: r } : null;
+    const rows = K.db[t] || [], u = S2(K.u || 'admin'), [ch, fk] = REL[t] || [];
+    let op = null;
+    if (K.parent?.type === t) { const r = rows.find(x => S2(trxIdOf(t, x)) === S2(K.parent.id)); if (r && isUserVisible(r, t) && (K.parent.open || (S2(cV(r, t, 'user')) === u && ['draft', 'revisi'].includes(S2(cV(r, t, 'status')))))) op = { type: t, id: trxIdOf(t, r), row: r }; }
+    if (!op) { const r = rows.find(x => S2(cV(x, t, 'user')) === u && ['draft', 'revisi'].includes(S2(cV(x, t, 'status')))); if (r) op = { type: t, id: trxIdOf(t, r), row: r }; }
+    if (!op) return null;
+    return (!mustHaveItems || (ch && K.db[ch]?.some(r => S2(cV(r, ch, fk)) === S2(op.id)))) ? op : null;
   };
-  const hasDraftItems = t => { const ch = childOf(t), op = getOpenTrx(t); return Boolean(ch && op && K.db[ch]?.some(r => S2(cV(r, ch, fkCol(ch))) === S2(op.id))); };
-  const dropRows = (sh, pred) => { K.db[sh] = (K.db[sh] || []).filter(r => { if (pred(r)) { syncMasterProduk(sh, r, null); save(r, sh, 0); return false; } return true; }); };
-  const dropTrxDeps = (t, id) => { const ch = childOf(t), fkI = ch ? cI(ch, fkCol(ch)) : -1; if (fkI !== -1) dropRows(ch, r => S2(r[fkI]) === S2(id)); if (t === 'penjualan') dropRows('cicil', c => S2(cV(c, 'cicil', 'idpenjualan')) === S2(id)); };
+  const dropRows = (sh, pred, cascade = false) => {
+    K.db[sh] = (K.db[sh] || []).filter(r => {
+      if (!pred(r)) return true;
+      syncMasterProduk(sh, r, null); save(r, sh, 0);
+      if (cascade && isTrx(sh)) {
+        const id = trxIdOf(sh, r), [ch, fk] = REL[sh] || [], fkI = ch ? cI(ch, fk) : -1;
+        if (id && fkI !== -1) dropRows(ch, cr => S2(cr[fkI]) === S2(id));
+        if (id && sh === 'penjualan') dropRows('cicil', c => S2(cV(c, 'cicil', 'idpenjualan')) === S2(id));
+      }
+      return false;
+    });
+  };
+  const openCart = t => { const op = getOpenTrx(t); if (op) K.parent = { type: t, id: op.id, open: true }; K.cur = REL[t][0]; K.grid = false; K.slice = ''; K.ret = null; setView('list', null); render(); };
 
   /* Prefill & Query */
-  const prefillProd = p => ({ idproduk: cV(p, 'produk', 'idproduk') || p[0] || '', namaproduk: cV(p, 'produk', 'namaproduk') || '', hargabeli: cV(p, 'produk', 'hargabeli') || '', hargajual: cV(p, 'produk', 'hargajual') || '', qty: '1', diskon: '', catatan: '' });
-  const openProdForm = p => { const isB = K.parent?.type === 'pembelian', pType = isB ? 'pembelian' : 'penjualan'; K.parent = getOpenTrx(pType) || { type: pType, id: genId(), open: true }; K.cur = isB ? 'produk_beli' : 'produk_jual'; K.prefill = prefillProd(p); K.prodIdx = (K.db.produk || []).indexOf(p); setView('form', -1); render(); };
-  const prodTo = sheet => { if (!(K.idx >= 0)) return; if (!K.shs.includes(sheet)) K.shs.push(sheet); K.prefill = prefillProd(K.db.produk[K.idx] || []); K.cur = sheet; K.prodIdx = K.idx; setView('form', -1); render(); };
+  const openProdForm = (p, sheet = null, rawObjOnly = false) => {
+    const pre = { idproduk: cV(p, 'produk', 'idproduk') || p[0] || '', namaproduk: cV(p, 'produk', 'namaproduk') || '', hargabeli: cV(p, 'produk', 'hargabeli') || '', hargajual: cV(p, 'produk', 'hargajual') || '', qty: '1', diskon: '', catatan: '', _prodIdx: (K.db.produk || []).indexOf(p) };
+    if (rawObjOnly) return pre;
+    if (sheet) { if (!(K.idx >= 0)) return; if (!K.shs.includes(sheet)) K.shs.push(sheet); K.cur = sheet; }
+    else { const isB = K.parent?.type === 'pembelian', pType = isB ? 'pembelian' : 'penjualan'; K.parent = getOpenTrx(pType) || { type: pType, id: genId(), open: true }; K.cur = isB ? 'produk_beli' : 'produk_jual'; }
+    K.prefill = pre; setView('form', -1); render();
+  };
 
-  const resolveRef = (c, idx = 0) => { const col = S2(c); if (!col || (idx === 0 && K.cur !== 'skema' && (col === `id${S2(K.cur)}` || col === 'id'))) return null; const trg = { role: 'roles', sheet: 'skema' }[col] || (col.startsWith('id') ? col.slice(2) : col); return (trg && trg !== K.cur && K.shs.includes(trg)) ? trg : null; };
-  const hasRefMatch = (trg, val) => Boolean(S2(val) && (K.db[trg] || []).some(r => S2(r[0]) === S2(val)));
-  const refreshRefButtons = () => dom.ft.querySelectorAll('button[data-ref-col]').forEach(btn => { btn.hidden = !hasRefMatch(btn.dataset.a.slice(4), fld(btn.dataset.refCol)?.value); });
+  const syncRefBtns = () => dom.ft.querySelectorAll('button[data-ref-col]').forEach(btn => {
+    const trg = btn.dataset.a.slice(4), val = S2(qForm(btn.dataset.refCol)?.value);
+    btn.hidden = !(val && (K.db[trg] || []).some(r => S2(r[0]) === val));
+  });
 
   const queryRows = () => {
-    const rows = K.db[K.cur] || [], q = S2(dom.q.value).split(/\s+/).filter(Boolean), pType = parentOf(K.cur), op = pType ? getOpenTrx(pType) : null, cm = K.slice === 'piutang' ? cicilMap() : null, pm = prodMap(), km = kontakMap(), uNow = S2(K.u || 'admin'), adminMode = isAdmin(), res = [];
+    const rows = K.db[K.cur] || [], q = S2(dom.q.value).split(/\s+/).filter(Boolean), [pType, fk] = (!isTrx() && REL[K.cur]) ? REL[K.cur] : [null, null], op = pType ? getOpenTrx(pType) : null, uNow = S2(K.u || 'admin'), adminMode = getRole() === 'admin', res = [];
     const passSlice = r => {
       if (!K.slice) return true;
-      if (K.slice === 'ready' || K.slice === 'sisa_stok') return K.cur !== 'produk' || ((K.slice !== 'ready' || Z(cV(r, 'produk', 'stok')) > 0) && matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true, [], true));
-      if (K.slice === 'piutang') return K.cur !== 'penjualan' || (paidOf('penjualan', r, cm) < trxNet('penjualan', r) && matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${cV(r, 'penjualan', 'idkontak')} ${resolveKontakName(cV(r, 'penjualan', 'idkontak'), km)} ${cV(r, 'penjualan', 'catatan')}`));
-      if (['saldo_filter', 'profit', 'total_penjualan'].includes(K.slice)) return K.cur !== 'penjualan' || matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${cV(r, 'penjualan', 'idkontak')} ${resolveKontakName(cV(r, 'penjualan', 'idkontak'), km)} ${cV(r, 'penjualan', 'catatan')} ${calcItems('penjualan', trxIdOf('penjualan', r)).items.map(it => cV(pm.get(S2(it.id)), 'produk', 'kategori')).join(' ')}`);
-      if (K.slice === 'total_pembelian') return K.cur !== 'pembelian' || matchFilter(cV(r, 'pembelian', 'user'), cV(r, 'pembelian', 'date'), `${cV(r, 'pembelian', 'idkontak')} ${resolveKontakName(cV(r, 'pembelian', 'idkontak'), km)} ${cV(r, 'pembelian', 'catatan')}`);
+      if (K.slice === 'ready' || K.slice === 'sisa_stok') return K.cur !== 'produk' || ((K.slice !== 'ready' || N(cV(r, 'produk', 'stok'), true) > 0) && matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true, [], true));
+      if (K.slice === 'piutang') return K.cur !== 'penjualan' || (paidOf('penjualan', r) < trxNet('penjualan', r) && matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${cV(r, 'penjualan', 'idkontak')} ${resolveKontakName(cV(r, 'penjualan', 'idkontak'))} ${cV(r, 'penjualan', 'catatan')}`));
+      if (['saldo_filter', 'profit', 'total_penjualan'].includes(K.slice)) return K.cur !== 'penjualan' || matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${cV(r, 'penjualan', 'idkontak')} ${resolveKontakName(cV(r, 'penjualan', 'idkontak'))} ${cV(r, 'penjualan', 'catatan')} ${calcItems('penjualan', trxIdOf('penjualan', r)).items.map(it => cV(findMasterProd([it.id], 'produk'), 'produk', 'kategori')).join(' ')}`);
+      if (K.slice === 'total_pembelian') return K.cur !== 'pembelian' || matchFilter(cV(r, 'pembelian', 'user'), cV(r, 'pembelian', 'date'), `${cV(r, 'pembelian', 'idkontak')} ${resolveKontakName(cV(r, 'pembelian', 'idkontak'))} ${cV(r, 'pembelian', 'catatan')}`);
       if (K.slice === 'kas_masuk' || K.slice === 'kas_keluar') return K.cur !== 'kas' || (N(cV(r, 'kas', K.slice === 'kas_masuk' ? 'masuk' : 'keluar')) > 0 && matchFilter(cV(r, 'kas', 'user'), cV(r, 'kas', 'date'), `${cV(r, 'kas', 'kategori')} ${cV(r, 'kas', 'uraian')}`));
       return true;
     };
@@ -337,7 +354,7 @@
       const r = rows[i] || [];
       if (!isUserVisible(r, K.cur) || !passSlice(r)) continue;
       if (pType) {
-        const fkVal = S2(cV(r, K.cur, fkCol(K.cur)));
+        const fkVal = S2(cV(r, K.cur, fk));
         if (op) { if (fkVal !== S2(op.id) || (!K.parent?.open && S2(cV(op.row, pType, 'user')) && S2(cV(op.row, pType, 'user')) !== uNow)) continue; }
         else {
           const pRow = K.db[pType]?.find(x => S2(trxIdOf(pType, x)) === fkVal); if (!pRow) continue;
@@ -345,7 +362,7 @@
           if (adminMode) { if (pStatus === 'draft' && pUser && pUser !== uNow) continue; } else if (pUser !== uNow) continue;
         }
       }
-      const extra = isTrx() ? ' ' + resolveKontakName(cV(r, K.cur, 'idkontak'), km) : '';
+      const extra = isTrx() ? ' ' + resolveKontakName(cV(r, K.cur, 'idkontak')) : '';
       if (!q.length || q.every(w => (r.join(' ') + extra).toLowerCase().includes(w))) res.push(i);
     }
     if (K.sort > 0 && K.sort <= cols().length) { const ci = K.sort - 1; res.sort((a, b) => String(rows[a]?.[ci] || '').localeCompare(String(rows[b]?.[ci] || ''), undefined, { numeric: true }) * K.dir); }
@@ -367,34 +384,24 @@
     const addBtn = dom.h.querySelector('[data-a="add"]'); if (addBtn) addBtn.hidden = K.v !== 'list' || NO_ADD.includes(K.cur) || !hasAccess('add', K.cur);
   };
 
-  const renderNavFooters = () => {
-    if (K.v !== 'dash') addFooter('v-dash', 'dashboard');
-    if (K.cur !== 'kas' || K.v === 'dash') addFooter('v-kas', 'kas');
-    if (K.cur !== 'produk' || K.v === 'dash') addFooter('v-shop', 'produk');
-    if (K.cur !== 'produk_jual' && hasDraftItems('penjualan')) addFooter('v-jual', 'jual');
-    if (K.cur !== 'produk_beli' && hasDraftItems('pembelian')) addFooter('v-beli', 'beli');
-  };
-
   const renderDash = () => {
     msg();
     dom.db.insertAdjacentHTML('beforeend', `<input placeholder="user" data-df="u" value="${esc(K.df.u)}"> <input type="date" data-df="from" value="${esc(K.df.from)}"> <input type="date" data-df="to" value="${esc(K.df.to)}"> <input placeholder="kategori" data-df="kat" value="${esc(K.df.kat)}">`);
     addFooter('df-today', 'hari ini'); addFooter('df-clear', 'clear filter');
-    const qW = S2(dom.q.value).split(/\s+/).filter(Boolean), pm = prodMap(), km = kontakMap(), cMap = {}, cFilMap = {};
+    const qW = S2(dom.q.value).split(/\s+/).filter(Boolean);
     let mAll = 0, kAll = 0, mFil = 0, kFil = 0, jAll = 0, profFil = 0, jFil = 0, pAll = 0, pFil = 0, ecQtyFil = 0, bFil = 0, sStok = 0, rCount = 0, eMod = 0, eJual = 0;
     (K.db.kas || []).forEach(r => { if (!isUserVisible(r, 'kas')) return; const m = N(cV(r, 'kas', 'masuk')), k = N(cV(r, 'kas', 'keluar')); mAll += m; kAll += k; if (matchFilter(cV(r, 'kas', 'user'), cV(r, 'kas', 'date'), `${cV(r, 'kas', 'kategori')} ${cV(r, 'kas', 'uraian')}`, false, qW)) { mFil += m; kFil += k; } });
-    (K.db.cicil || []).forEach(c => { if (!isUserVisible(c, 'cicil')) return; const id = S2(cV(c, 'cicil', 'idpenjualan')), jml = N(cV(c, 'cicil', 'jumlah')); cMap[id] = (cMap[id] || 0) + jml; if (matchFilter(cV(c, 'cicil', 'user'), cV(c, 'cicil', 'date'), '', false, qW)) cFilMap[id] = (cFilMap[id] || 0) + jml; });
     (K.db.penjualan || []).forEach(r => {
       if (!isUserVisible(r, 'penjualan')) return;
-      const pid = trxIdOf('penjualan', r), { raw, disc, cogs, items } = calcItems('penjualan', pid), net = Math.max(0, raw - disc - N(cV(r, 'penjualan', 'diskon'))), paid = N(cV(r, 'penjualan', 'bayar')), paidAll = paid + (cMap[S2(pid)] || 0), kId = cV(r, 'penjualan', 'idkontak');
+      const pid = trxIdOf('penjualan', r), { raw, disc, cogs, items } = calcItems('penjualan', pid), net = Math.max(0, raw - disc - N(cV(r, 'penjualan', 'diskon'))), paidAll = paidOf('penjualan', r), kId = cV(r, 'penjualan', 'idkontak');
       jAll += net; if (paidAll < net) pAll += net - paidAll;
-      if (matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${kId} ${resolveKontakName(kId, km)} ${cV(r, 'penjualan', 'catatan')} ` + items.map(i => cV(pm.get(S2(i.id)), 'produk', 'kategori')).join(' '), false, qW)) { const paidFil = paid + (cFilMap[S2(pid)] || 0); jFil += net; profFil += net - cogs; if (paidFil < net) pFil += net - paidFil; }
+      if (matchFilter(cV(r, 'penjualan', 'user'), cV(r, 'penjualan', 'date'), `${kId} ${resolveKontakName(kId)} ${cV(r, 'penjualan', 'catatan')} ` + items.map(i => cV(findMasterProd([i.id], 'produk'), 'produk', 'kategori')).join(' '), false, qW)) { const paidFil = paidOf('penjualan', r, true, qW); jFil += net; profFil += net - cogs; if (paidFil < net) pFil += net - paidFil; }
     });
     (K.db.ecer || []).forEach(r => { if (!isUserVisible(r, 'ecer')) return; const q = N(cV(r, 'ecer', 'qty')), net = Math.max(0, q * N(cV(r, 'ecer', 'hargajual')) - N(cV(r, 'ecer', 'diskon'))); jAll += net; if (matchFilter(cV(r, 'ecer', 'user'), cV(r, 'ecer', 'date'), cV(r, 'ecer', 'catatan'), false, qW)) { jFil += net; profFil += net - q * N(cV(r, 'ecer', 'hargabeli')); ecQtyFil += q; } });
-    (K.db.pembelian || []).forEach(r => { if (!isUserVisible(r, 'pembelian')) return; const kId = cV(r, 'pembelian', 'idkontak'); if (matchFilter(cV(r, 'pembelian', 'user'), cV(r, 'pembelian', 'date'), `${kId} ${resolveKontakName(kId, km)} ${cV(r, 'pembelian', 'catatan')}`, false, qW)) bFil += trxNet('pembelian', r); });
-    (K.db.produk || []).forEach(r => { const s = Z(cV(r, 'produk', 'stok')); if (matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true, qW, true)) { sStok += N(s); if (s > 0) { rCount++; eMod += s * N(cV(r, 'produk', 'hargabeli')); eJual += s * N(cV(r, 'produk', 'hargajual')); } } });
+    (K.db.pembelian || []).forEach(r => { if (!isUserVisible(r, 'pembelian')) return; const kId = cV(r, 'pembelian', 'idkontak'); if (matchFilter(cV(r, 'pembelian', 'user'), cV(r, 'pembelian', 'date'), `${kId} ${resolveKontakName(kId)} ${cV(r, 'pembelian', 'catatan')}`, false, qW)) bFil += trxNet('pembelian', r); });
+    (K.db.produk || []).forEach(r => { const s = N(cV(r, 'produk', 'stok'), true); if (matchFilter('', '', `${cV(r, 'produk', 'namaproduk')} ${cV(r, 'produk', 'subkategori')} ${cV(r, 'produk', 'kategori')}`, true, qW, true)) { sStok += N(s); if (s > 0) { rCount++; eMod += s * N(cV(r, 'produk', 'hargabeli')); eJual += s * N(cV(r, 'produk', 'hargajual')); } } });
     const sumQty = sh => (K.db[sh] || []).reduce((a, r) => a + (isUserVisible(r, sh) ? N(cV(r, sh, 'qty')) : 0), 0);
     [['saldo total', fmtNum(mAll + jAll - kAll - pAll), 'kas', 'saldo_total', 'saldo_total'], ['saldo filter', fmtNum(mFil + jFil - kFil - pFil), 'penjualan', 'saldo_filter', 'saldo_filter'], ['user', K.u || 'admin', 'users', 'users', 'users'], ['profit', fmtNum(profFil), 'penjualan', 'profit', 'profit'], ['kas masuk', fmtNum(mFil), 'kas', 'kas_masuk', 'kas_masuk'], ['kas keluar', fmtNum(kFil), 'kas', 'kas_keluar', 'kas_keluar'], ['total penjualan', fmtNum(jFil), 'penjualan', 'total_penjualan', 'total_penjualan'], ['total pembelian', fmtNum(bFil), 'pembelian', 'total_pembelian', 'total_pembelian'], ['total piutang', fmtNum(pFil), 'penjualan', 'piutang', 'total_piutang'], ['stok masuk', fmtNum(sumQty('produk_beli')), 'produk_beli', 'stok_masuk', 'stok_masuk'], ['stok keluar', fmtNum(sumQty('produk_jual') + ecQtyFil), 'produk_jual', 'stok_keluar', 'stok_keluar'], ['sisa stok', fmtNum(sStok), 'produk', 'sisa_stok', 'sisa_stok'], ['produk ready stok', rCount + ' item', 'produk', 'ready', 'ready'], ['estimasi modal ready', fmtNum(eMod), 'produk', 'ready', 'modal_ready'], ['estimasi jual ready', fmtNum(eJual), 'produk', 'ready', 'jual_ready'], ['estimasi profit ready', fmtNum(eJual - eMod), 'produk', 'ready', 'profit_ready']].forEach(([l, v, s, sl, k]) => { if (hasAccess(k) && hasAccess(s)) dom.db.insertAdjacentHTML('beforeend', `<button data-a="nav" data-s="${esc(s)}" data-slice="${esc(sl)}">${esc(l)}: <b>${esc(v)}</b></button>`); });
-    renderNavFooters();
   };
 
   const renderForm = () => {
@@ -402,56 +409,60 @@
     if (K.cur === 'cms' && K.v === 'cms_detail') {
       const r = K.db.cms?.[K.idx] || [], g = k => cV(r, 'cms', k), foto = isSafeUrl(g('foto')) ? g('foto') : '', file = g('file');
       dom.fb.innerHTML = `<b>${esc(g('judul') || '-')}</b><small>${esc([g('date'), g('user'), g('kategori'), g('status') && '[' + g('status') + ']'].filter(Boolean).join(' | '))}</small><p>${esc(g('konten'))}</p>${foto ? `<img src="${esc(foto)}" alt="cms">` : ''}`;
-      addFooter('back', '<'); if (file) addFooter('dl-cms-file', 'unduh file'); addFooter('edit-cms', 'edit'); renderNavFooters(); return;
+      addFooter('back', '<'); if (file) addFooter('dl-cms-file', 'unduh file'); addFooter('edit-cms', 'edit'); return;
     }
-    const c = cols(), bypassAdd = K.idx === -1 && ['produk', 'kas', 'skema'].includes(K.cur), formCols = bypassAdd ? fvis() : fvis().filter(col => hasAccess(col, K.cur)), row = (K.idx !== null && K.idx >= 0) ? (K.db[K.cur][K.idx] || []) : [], stVal = S2(cV(row, K.cur, 'status')), isOpen = isTrx() && isOpenStatus(stVal), isDraft = isTrx() && stVal === 'draft', itemEditable = K.idx === -1 || canEditTrxItem(K.cur, row);
+    const c = cols(), bypassAdd = K.idx === -1 && ['produk', 'kas', 'skema'].includes(K.cur), formCols = bypassAdd ? visCols(K.cur, true) : visCols(K.cur, true).filter(col => hasAccess(col, K.cur)), row = (K.idx !== null && K.idx >= 0) ? (K.db[K.cur][K.idx] || []) : [], stVal = S2(cV(row, K.cur, 'status')), isOpen = isTrx() && ['draft', 'revisi'].includes(stVal), isDraft = isTrx() && stVal === 'draft', itemEditable = K.idx === -1 || canEditTrxItem(K.cur, row);
     if (isTrx() && K.idx !== null && K.idx >= 0) { const { raw, disc, cogs, pot } = calcItems(K.cur, trxIdOf(K.cur, row)), net = Math.max(0, raw - disc - N(cV(row, K.cur, 'diskon'))); msg(`total: ${fmtNum(net)}${hasAccess('profit', K.cur) ? ` | profit: ${fmtNum(K.cur === 'penjualan' ? (net - cogs) : (pot - net))}` : ''}`); } else msg();
     const restored = (K.ret && K.ret.cur === K.cur && K.ret.idx === K.idx) ? K.ret.form : null; if (restored) K.ret = null;
     formCols.forEach(col => {
       let val = (K.idx === -1 && c.indexOf(col) === 0 && K.cur !== 'skema') ? genId() : (row[c.indexOf(col)] ?? '');
       if (restored?.[col] != null) val = restored[col]; else if (K.idx === -1 && K.prefill?.[col] != null) val = K.prefill[col]; else if (K.idx === -1 && !val && /date|tanggal/i.test(col)) val = today(); else if (K.idx === -1 && !val && col === 'user') val = K.u || 'admin'; else if (K.idx === -1 && !val && K.cur === 'cms' && col === 'status') val = 'publish';
       const isLong = /catatan|alamat|uraian|konten|akses|hide|validasi/i.test(col), tag = isLong ? 'textarea' : 'input', typeAttr = /date|tanggal/i.test(col) ? 'type="date"' : '';
-      dom.fb.insertAdjacentHTML('beforeend', `<${tag} ${typeAttr} placeholder="${esc(col)}" value="${esc(val)}" data-col="${esc(col)}">${isLong ? esc(val) : ''}</${tag}>`); updateFormThumb(fld(col));
+      dom.fb.insertAdjacentHTML('beforeend', `<${tag} ${typeAttr} placeholder="${esc(col)}" value="${esc(val)}" data-col="${esc(col)}">${isLong ? esc(val) : ''}</${tag}>`); updateFormThumb(qForm(col));
     });
-    if (K.idx === -1 && getRoleRules().includes('wajiblokasi')) { const loc = fldBy(GEO_RE); if (loc && !loc.value && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { if (!loc.value) loc.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => { loc.value = 'here()'; }, { timeout: 4000 }); }
+    if (K.idx === -1 && getRoleRules().includes('wajiblokasi')) { const loc = qForm(GEO_RE); if (loc && !loc.value && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { if (!loc.value) loc.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => { loc.value = 'here()'; }, { timeout: 4000 }); }
     addFooter('back', '<'); if (itemEditable) addFooter('save-row', 'save');
     if (isTrx()) addFooter('trx-pick-kontak', 'kontak');
-    formCols.forEach(col => { const trg = resolveRef(col, c.indexOf(col)); if (trg && hasAccess(trg)) addFooter(`ref-${trg}`, `ref ${trg}`, K.cur, `data-ref-col="${esc(col)}"${hasRefMatch(trg, fld(col)?.value) ? '' : ' hidden'}`); });
+    formCols.forEach(col => {
+      const sCol = S2(col), idx = c.indexOf(col);
+      if (!sCol || (idx === 0 && K.cur !== 'skema' && (sCol === `id${S2(K.cur)}` || sCol === 'id'))) return;
+      const trg = { role: 'roles', sheet: 'skema' }[sCol] || (sCol.startsWith('id') ? sCol.slice(2) : sCol);
+      if (trg && trg !== K.cur && K.shs.includes(trg) && hasAccess(trg)) addFooter(`ref-${trg}`, `ref ${trg}`, K.cur, `data-ref-col="${esc(col)}" hidden`);
+    });
+    syncRefBtns();
     if (K.cur === 'kontak' && K.idx !== null && K.idx >= 0) { const kId = S2(cV(row, 'kontak', 'idkontak') || row[0]); if (kId) ['penjualan', 'pembelian'].forEach(tSh => { if (hasAccess(tSh) && (K.db[tSh] || []).some(tr => isUserVisible(tr, tSh) && S2(cV(tr, tSh, 'idkontak')) === kId)) addFooter(`ref-kontak-trx-${tSh}`, `ref ${tSh}`, K.cur, `data-kid="${esc(cV(row, 'kontak', 'idkontak') || row[0])}"`); }); }
     if (formCols.some(k => /foto/i.test(k))) { addFooter('cam', 'kamera'); addFooter('pic', 'file foto'); }
     if (formCols.some(k => /file/i.test(k))) addFooter('doc-upload', 'upload berkas');
     if (K.cur === 'produk') addFooter('gimg', 'gimg');
     if (formCols.some(k => GEO_RE.test(k))) { addFooter('gps', 'gps'); if (/(-?\d+\.\d+),\s*(-?\d+\.\d+)/.test(formCols.map(col => row[c.indexOf(col)] || '').join(' '))) addFooter('navigasi', 'navigasi'); }
     if (K.cur === 'produk' && K.idx !== null && K.idx >= 0) { addFooter('jual-prod', 'jual'); addFooter('beli-prod', 'beli'); addFooter('ecer-prod', 'ecer'); }
-    if (STOCK_SHEETS.includes(K.cur) && row.length) { const lk = cV(row, K.cur, 'idproduk'); if (lk) { const pi = (K.db.produk || []).findIndex(p => prodIdOf(p) === S2(lk)); if (pi !== -1) K.prodIdx = pi; } }
-    if (K.prodIdx !== null) addFooter('edit-prod', 'edit produk');
-    if (isTrx() && K.idx !== null && K.idx >= 0) { if (!isOpen) addFooter('revisi', 'revisi'); addFooter('pay-pas', 'pas'); if (!isDraft) addFooter('trx-rincian', childOf(K.cur)); if (K.cur === 'penjualan') addFooter('show-nota', 'nota'); addFooter('cicil', 'cicil'); if (!isDraft) addFooter('print', 'print'); }
+    const pIdx = K.prefill?._prodIdx ?? (STOCK_SHEETS.includes(K.cur) && row.length ? (K.db.produk || []).indexOf(findMasterProd(row, K.cur)) : -1);
+    if (pIdx >= 0) addFooter('edit-prod', 'edit produk', K.cur, `data-pidx="${pIdx}"`);
+    if (isTrx() && K.idx !== null && K.idx >= 0) { if (!isOpen) addFooter('revisi', 'revisi'); addFooter('pay-pas', 'pas'); if (!isDraft) addFooter('trx-rincian', REL[K.cur][0]); if (K.cur === 'penjualan') addFooter('show-nota', 'nota'); addFooter('cicil', 'cicil'); if (!isDraft) addFooter('print', 'print'); }
     if (K.idx !== null && K.idx >= 0 && itemEditable) { if (!isDraft) addFooter('dup-row', 'dup'); addFooter('del-row', K.conf === 'del' ? 'sure?' : 'del'); }
-    renderNavFooters();
   };
 
   const renderList = isBulkEdit => {
     msg();
-    const c = cols(), vCols = vis(), rows = K.db[K.cur] || [], matched = queryRows(), km = kontakMap(), vIdxs = c.map((col, i) => vCols.includes(col) ? i : -1).filter(i => i !== -1), eff = vIdxs.length ? vIdxs : [0], imgI = cI(K.cur, 'foto') !== -1 ? cI(K.cur, 'foto') : cI(K.cur, 'foto_url'), limit = Math.min(K.page * 25, matched.length);
+    const c = cols(), vCols = visCols(), rows = K.db[K.cur] || [], matched = queryRows(), vIdxs = c.map((col, i) => vCols.includes(col) ? i : -1).filter(i => i !== -1), eff = vIdxs.length ? vIdxs : [0], imgI = cI(K.cur, 'foto') !== -1 ? cI(K.cur, 'foto') : cI(K.cur, 'foto_url'), limit = Math.min(K.page * 25, matched.length);
     for (let m = 0; m < limit; m++) {
       const trg = matched[m], r = rows[trg] || [], el = document.createElement('div'); el.dataset.idx = trg;
       if (isBulkEdit) { el.contentEditable = 'plaintext-only'; if (!el.isContentEditable) el.contentEditable = 'true'; el.textContent = r.join('|'); }
       else {
         if ((K.grid || K.cur === 'cms') && imgI !== -1 && isSafeUrl(r[imgI])) { const im = document.createElement('img'); im.src = r[imgI]; im.alt = ''; im.onerror = () => im.remove(); el.appendChild(im); if (!K.grid) el.appendChild(document.createTextNode(' ')); }
-        el.appendChild(document.createTextNode(eff.map(i => { const val = r[i]; if (!val || i === imgI) return ''; if (c[i] === 'idkontak') return resolveKontakName(val, km); return c[i] === 'konten' ? String(val).replace(/\s+/g, ' ').slice(0, 50) + '...' : val; }).filter(Boolean).join(' ') || '-'));
+        el.appendChild(document.createTextNode(eff.map(i => { const val = r[i]; if (!val || i === imgI) return ''; if (c[i] === 'idkontak') return resolveKontakName(val); return c[i] === 'konten' ? String(val).replace(/\s+/g, ' ').slice(0, 50) + '...' : val; }).filter(Boolean).join(' ') || '-'));
       }
       dom.ls.appendChild(el);
     }
     if (isBulkEdit) { addFooter('back', '<'); addFooter('save-bulk', 'save'); } else if (K.ret) addFooter('back', '<');
     else {
-      const pType = parentOf(K.cur), op = pType ? getOpenTrx(pType) : null;
-      if (pType && op) { K.parent = { type: pType, id: op.id, open: true }; const { raw, disc } = calcItems(pType, op.id); addFooter('batal-trx', 'batal'); addFooter('clear-items', K.conf === 'clear-items' ? 'sure?' : 'clear'); addFooter('add-cart-item', '+item'); addFooter('v-selesai', `${pType} (${fmtNum(raw - disc)})`); if (pType === 'penjualan') addFooter('show-nota', 'nota'); }
-      renderNavFooters();
+      const [pType] = (!isTrx() && REL[K.cur]) ? REL[K.cur] : [null], op = pType ? getOpenTrx(pType) : null;
+      if (pType && op) { K.parent = { type: pType, id: op.id, open: true }; const { raw, disc } = calcItems(pType, op.id); addFooter('batal-trx', 'batal'); addFooter('clear-items', K.conf === 'clear-items' ? 'sure?' : 'clear'); addFooter('add-cart-item', '+item'); addFooter('trx-rincian', `${pType} (${fmtNum(raw - disc)})`); if (pType === 'penjualan') addFooter('show-nota', 'nota'); }
     }
     if (limit < matched.length) addFooter('more', 'more');
   };
 
-  const renderNota = () => { msg(); dom.tape.textContent = K.receiptRaw; addFooter('back', '<'); addFooter('rawbt', 'rawbt'); addFooter('jpg', 'jpg'); addFooter('print', 'print'); renderNavFooters(); };
+  const renderNota = () => { msg(); $('tape').textContent = K.receiptRaw; addFooter('back', '<'); addFooter('rawbt', 'rawbt'); addFooter('jpg', 'jpg'); addFooter('print', 'print'); };
   const updateFormThumb = inp => { if (!inp) return; const col = inp.dataset.col || '', val = (inp.value || '').trim(); let th = dom.fb.querySelector(`img[data-thumb-col="${CSS.escape(col)}"]`); if (val && (/foto/i.test(col) || isSafeUrl(val))) { if (!th) { th = document.createElement('img'); th.dataset.thumbCol = col; th.alt = 'thumb'; th.onerror = () => th.remove(); inp.insertAdjacentElement('afterend', th); } th.src = val; } else if (th) th.remove(); };
   const persist = () => { try { L.setItem('apex', JSON.stringify({ cur: K.cur, u: K.u, shs: K.shs, cols: K.cols, vis: K.vis, fvis: K.fvis, parent: K.parent, grid: K.grid, df: K.df })); idbPut(K.db, 'apex_matrix'); } catch {} };
 
@@ -461,29 +472,37 @@
     const isF = K.v === 'cms_detail' || K.idx !== null, m = K.v === 'menu' ? 'menu' : K.v === 'dash' ? 'dash' : K.v === 'nota' ? 'nota' : isF ? 'form' : K.v === 'edit' ? 'edit' : 'list';
     dom.h.hidden = m === 'form'; dom.tools.hidden = m !== 'list' && m !== 'edit'; dom.fb.hidden = m !== 'form'; dom.db.hidden = m !== 'dash'; dom.bn.hidden = m !== 'nota'; dom.ls.hidden = m !== 'list' && m !== 'edit';
     renderChrome();
-    if (m === 'menu') { addFooter('back', '<'); addFooter('theme', getTheme() === 'dark' ? 'light mode' : 'dark mode'); addFooter('reset-db', 'reset db'); addFooter('logout', 'logout'); }
-    else if (m === 'dash') renderDash(); else if (m === 'nota') renderNota(); else if (m === 'form') renderForm(); else renderList(m === 'edit');
+    if (m === 'menu') { addFooter('back', '<'); addFooter('theme', setTheme() === 'dark' ? 'light mode' : 'dark mode'); addFooter('reset-db', 'reset db'); addFooter('logout', 'logout'); return; }
+    if (m === 'dash') renderDash(); else if (m === 'nota') renderNota(); else if (m === 'form') renderForm(); else renderList(m === 'edit');
+    if (m !== 'edit' && !K.ret) {
+      if (K.v !== 'dash') addFooter('v-dash', 'dashboard');
+      if (K.cur !== 'kas' || K.v === 'dash') addFooter('v-kas', 'kas');
+      if (K.cur !== 'produk' || K.v === 'dash') addFooter('v-shop', 'produk');
+      if (K.cur !== 'produk_jual' && getOpenTrx('penjualan', true)) addFooter('v-jual', 'jual');
+      if (K.cur !== 'produk_beli' && getOpenTrx('pembelian', true)) addFooter('v-beli', 'beli');
+    }
   };
 
   /* Actions */
-  const authSuccess = u => { K.u = L.u = u; K.parent = K.ret = K.prev = null; persist(); syn(true); setView('dash', null); msg(); render(); };
+  const pickFile = (mode, accept = '', cap = '') => { upMode = mode; const f = $('f-up'); accept ? f.setAttribute('accept', accept) : f.removeAttribute('accept'); cap ? f.setAttribute('capture', cap) : f.removeAttribute('capture'); f.click(); };
   const actions = {
-    closemsg: () => { K.conf = null; msg(); render(); }, refresh: async () => { await syn(true); render(); }, scan: () => startScan(), 'stop-scan': () => stopScan(),
+    refresh: async () => { await syn(true); render(); }, scan: () => startScan(), 'stop-scan': () => stopScan(),
     login: () => {
       const u = S2(dom.fb.querySelector('[data-f="user"]')?.value || ''), p = (dom.fb.querySelector('[data-f="password"]')?.value || '').trim(); if (!u) return msg('user required');
       const f = K.db.users?.find(r => S2(r[0]) === u);
-      if (f) { const pw = cV(f, 'users', 'password'); if (pw && pw !== p) return msg('password salah'); return authSuccess(f[0]); }
-      if (!K.db.users?.length && u === 'admin') { const adm = userRow('admin', 'admin', 'admin'); K.db.users = [adm]; save(adm, 'users', 2); return authSuccess('admin'); }
-      msg('user tidak terdaftar');
+      if (f) { const pw = cV(f, 'users', 'password'); if (pw && pw !== p) return msg('password salah'); K.u = L.u = f[0]; }
+      else if (!K.db.users?.length && u === 'admin') { const adm = userRow('admin', 'admin', 'admin'); K.db.users = [adm]; save(adm, 'users', 2); K.u = L.u = 'admin'; }
+      else return msg('user tidak terdaftar');
+      K.parent = K.ret = K.prev = null; persist(); syn(true); setView('dash', null); msg(); render();
     },
     reg: () => {
       const u = S2(dom.fb.querySelector('[data-f="user"]')?.value || ''), p = (dom.fb.querySelector('[data-f="password"]')?.value || '').trim(); if (!u) return msg('user required');
       if (K.db.users?.some(r => S2(r[0]) === u)) return msg('user sudah ada');
-      const row = userRow(u, 'user', p); (K.db.users = K.db.users || []).push(row); save(row, 'users', 2); authSuccess(u);
+      const row = userRow(u, 'user', p); (K.db.users = K.db.users || []).push(row); K.u = L.u = u; K.parent = K.ret = K.prev = null; persist(); save(row, 'users', 2); syn(true); setView('dash', null); msg(); render();
     },
-    bypass: () => { K.db.users = K.db.users || []; if (!K.db.users.find(r => S2(r[0]) === 'admin')) { const adm = userRow('admin', 'admin', 'admin'); K.db.users.unshift(adm); save(adm, 'users', 2); } authSuccess('admin'); },
+    bypass: () => { K.db.users = K.db.users || []; if (!K.db.users.find(r => S2(r[0]) === 'admin')) { const adm = userRow('admin', 'admin', 'admin'); K.db.users.unshift(adm); save(adm, 'users', 2); } K.u = L.u = 'admin'; K.parent = K.ret = K.prev = null; persist(); syn(true); setView('dash', null); msg(); render(); },
     back: () => {
-      stopScan(); K.prefill = K.prodIdx = K.conf = null;
+      stopScan(); K.prefill = K.conf = null;
       if (K.ret) { K.cur = K.ret.cur; K.parent = K.ret.parent; setView('form', K.ret.idx); return render(); }
       if (K.v === 'menu') { dom.q.value = ''; setView('dash', null); return render(); }
       if (K.v === 'cms_detail' || K.idx !== null) { setView('list', null); return render(); }
@@ -491,20 +510,18 @@
       if (K.v !== 'dash') { K.slice = ''; setView('dash', null); render(); }
     },
     menu: () => { K.v = K.v === 'menu' ? 'dash' : 'menu'; dom.q.value = ''; render(); },
-    theme: () => { const t = getTheme() === 'dark' ? 'light' : 'dark'; L.theme = t; applyTheme(t); render(); },
-    'df-today': () => { K.df.from = K.df.to = today(); persist(); render(); }, 'df-clear': () => { K.df = { u: '', from: '', to: '', kat: '' }; persist(); render(); },
-    'v-dash': () => { K.prefill = K.prodIdx = K.ret = null; K.slice = ''; setView('dash', null); render(); },
-    'v-kas': () => { if (!K.shs.includes('kas')) K.shs.push('kas'); K.cur = 'kas'; K.slice = ''; K.prefill = K.prodIdx = K.ret = null; setView('form', -1); render(); },
-    'v-shop': () => { K.cur = 'produk'; K.grid = true; K.prefill = K.prodIdx = K.ret = null; setView('list', null); K.slice = ''; render(); },
-    'v-jual': () => { const op = getOpenTrx('penjualan'); if (op) K.parent = { type: 'penjualan', id: op.id, open: true }; K.cur = 'produk_jual'; K.grid = false; K.slice = ''; K.ret = null; setView('list', null); render(); },
-    'v-beli': () => { const op = getOpenTrx('pembelian'); if (op) K.parent = { type: 'pembelian', id: op.id, open: true }; K.cur = 'produk_beli'; K.grid = false; K.slice = ''; K.ret = null; setView('list', null); render(); },
-    'v-selesai': () => { if (!K.parent) return; const fi = (K.db[K.parent.type] || []).findIndex(r => S2(trxIdOf(K.parent.type, r)) === S2(K.parent.id)); K.cur = K.parent.type; setView('form', fi !== -1 ? fi : null); render(); },
-    'clear-items': () => { if (K.conf !== 'clear-items') { K.conf = 'clear-items'; return render(); } if (!K.parent) return; const { type, id } = K.parent; dropTrxDeps(type, id); dropRows(type, r => S2(trxIdOf(type, r)) === S2(id)); K.parent = K.conf = null; persist(); syn(true); K.cur = 'produk'; setView('list', null); render(); },
+    theme: () => { setTheme(setTheme() === 'dark' ? 'light' : 'dark'); render(); },
+    'v-dash': () => { K.prefill = K.ret = null; K.slice = ''; setView('dash', null); render(); },
+    'v-kas': () => { if (!K.shs.includes('kas')) K.shs.push('kas'); K.cur = 'kas'; K.slice = ''; K.prefill = K.ret = null; setView('form', -1); render(); },
+    'v-shop': () => { K.cur = 'produk'; K.grid = true; K.prefill = K.ret = null; setView('list', null); K.slice = ''; render(); },
+    'v-jual': () => openCart('penjualan'),
+    'v-beli': () => openCart('pembelian'),
+    'clear-items': () => { if (K.conf !== 'clear-items') { K.conf = 'clear-items'; return render(); } if (!K.parent) return; const { type, id } = K.parent; dropRows(type, r => S2(trxIdOf(type, r)) === S2(id), true); K.parent = K.conf = null; persist(); syn(true); K.cur = 'produk'; setView('list', null); render(); },
     'batal-trx': () => {
-      const pType = parentOf(K.cur) || K.parent?.type, op = pType ? getOpenTrx(pType) : null;
+      const pType = (!isTrx() && REL[K.cur]?.[0]) || K.parent?.type, op = pType ? getOpenTrx(pType) : null;
       if (op) {
         const sI = cI(pType, 'status');
-        if (sI > -1 && isOpenStatus(op.row[sI])) {
+        if (sI > -1 && ['draft', 'revisi'].includes(S2(op.row[sI]))) {
           const { raw, disc } = calcItems(pType, op.id), net = Math.max(0, raw - disc - N(cV(op.row, pType, 'diskon'))), paid = paidOf(pType, op.row), kId = cV(op.row, pType, 'idkontak');
           op.row[sI] = net > 0 ? (paid >= net ? 'lunas' : (kId ? 'piutang' : 'batal')) : 'batal';
           save(op.row, pType, 1);
@@ -512,12 +529,12 @@
       }
       K.parent = K.conf = null; persist(); K.cur = 'produk'; K.grid = true; setView('list', null); render();
     },
-    'add-cart-item': () => { K.prefill = K.prodIdx = null; setView('form', -1); render(); }, 'edit-cms': () => { setView('form', K.idx); render(); },
-    'dl-cms-file': () => { const r = K.db.cms?.[K.idx] || [], data = cV(r, 'cms', 'file'), judul = cV(r, 'cms', 'judul') || 'berkas'; if (!data) return; if (/^https?:\/\//i.test(data)) return W.open(data, '_blank', 'noopener,noreferrer'); if (/^data:/i.test(data)) { const a = document.createElement('a'); a.href = data; a.download = judul.replace(/\s+/g, '_'); document.body.appendChild(a); a.click(); return setTimeout(() => a.remove(), 400); } dl(data, `${judul}.txt`); },
+    'add-cart-item': () => { K.prefill = null; setView('form', -1); render(); },
+    'edit-cms': () => { setView('form', K.idx); render(); }, // No. 107
+    'dl-cms-file': () => { const r = K.db.cms?.[K.idx] || [], data = cV(r, 'cms', 'file'), judul = cV(r, 'cms', 'judul') || 'berkas'; if (!data) return; if (/^https?:\/\//i.test(data)) return W.open(data, '_blank', 'noopener,noreferrer'); if (/^data:/i.test(data)) { const a = document.createElement('a'); a.href = data; a.download = judul.replace(/\s+/g, '_'); document.body.appendChild(a); a.click(); return setTimeout(() => a.remove(), 400); } dl(data, `${judul}.txt`); }, // No. 108
     nav: b => { K.cur = b.dataset.s; setView('list', null); K.page = 1; K.slice = b.dataset.slice || ''; render(); },
     add: () => { if (!NO_ADD.includes(K.cur) && hasAccess('add', K.cur)) { setView('form', -1); render(); } },
-    'edit-prod': () => { if (K.prodIdx !== null) { K.cur = 'produk'; const pi = K.prodIdx; K.prodIdx = K.prefill = null; setView('form', pi); render(); } },
-    'jual-prod': () => prodTo('produk_jual'), 'beli-prod': () => prodTo('produk_beli'), 'ecer-prod': () => prodTo('ecer'),
+    'edit-prod': b => { const pi = parseInt(b.dataset.pidx, 10); if (!isNaN(pi) && K.db.produk?.[pi]) { K.cur = 'produk'; K.prefill = null; setView('form', pi); render(); } },
 
     'save-row': () => {
       if (K.writing) return; K.writing = true;
@@ -525,16 +542,16 @@
         const c = cols(), oldRow = (K.idx >= 0 && K.db[K.cur][K.idx]) ? K.db[K.cur][K.idx].slice() : null, row = oldRow ? oldRow.slice(0, c.length) : new Array(c.length).fill('');
         if (oldRow && !canEditTrxItem(K.cur, oldRow)) return msg('tidak ada akses edit item transaksi');
         while (row.length < c.length) row.push('');
-        if (K.idx === -1 && K.prefill) Object.entries(K.prefill).forEach(([k, v]) => { const ci = c.indexOf(k); if (ci !== -1 && v != null) row[ci] = String(v).trim(); });
-        flds().forEach(inp => { const ci = c.indexOf(inp.dataset.col); if (ci !== -1) row[ci] = inp.value.trim(); });
+        if (K.idx === -1 && K.prefill) Object.entries(K.prefill).forEach(([k, v]) => { if (!k.startsWith('_')) { const ci = c.indexOf(k); if (ci !== -1 && v != null) row[ci] = String(v).trim(); } });
+        qForm().forEach(inp => { const ci = c.indexOf(inp.dataset.col); if (ci !== -1) row[ci] = inp.value.trim(); });
 
         if (STOCK_SHEETS.includes(K.cur)) {
           const qtyRaw = cV(row, K.cur, 'qty').trim();
-          if (!qtyRaw || Z(qtyRaw) <= 0) return msg('qty harus lebih dari 0');
+          if (!qtyRaw || N(qtyRaw, true) <= 0) return msg('qty harus lebih dari 0');
           const pRow = findMasterProd(row, K.cur);
           if (pRow) {
-            const sw = oldRow && S2(cV(oldRow, K.cur, 'idproduk')) !== prodIdOf(pRow);
-            ['idproduk', 'namaproduk', 'hargabeli', 'hargajual'].forEach(k => { const ci = cI(K.cur, k); if (ci > -1 && (!row[ci] || (k !== 'idproduk' && sw && !fld(k)))) row[ci] = cV(pRow, 'produk', k) || (k === 'idproduk' ? pRow[0] : '') || ''; });
+            const sw = oldRow && S2(cV(oldRow, K.cur, 'idproduk')) !== S2(cV(pRow, 'produk', 'idproduk') || pRow[0]);
+            ['idproduk', 'namaproduk', 'hargabeli', 'hargajual'].forEach(k => { const ci = cI(K.cur, k); if (ci > -1 && (!row[ci] || (k !== 'idproduk' && sw && !qForm(k)))) row[ci] = cV(pRow, 'produk', k) || (k === 'idproduk' ? pRow[0] : '') || ''; });
           }
         }
         if (K.cur === 'skema') {
@@ -550,11 +567,11 @@
         if (rules.includes('wajibkontak') && c.includes('idkontak') && !valOf('idkontak')) return msg('idkontak kosong');
         if (rules.includes('wajibabsen') && ['penjualan', 'kas', 'pembelian'].includes(K.cur) && !(K.db.absen || []).some(a => S2(cV(a, 'absen', 'user')) === S2(K.u || 'admin') && cV(a, 'absen', 'date') === today())) return msg('absen dulu');
         if (rules.includes('wajibstok') && ['produk_jual', 'ecer'].includes(K.cur)) {
-          const pRow = prodMap().get(S2(valOf('idproduk'))), same = oldRow && S2(cV(oldRow, K.cur, 'idproduk')) === S2(valOf('idproduk')), need = N(valOf('qty')) - (same ? N(cV(oldRow, K.cur, 'qty')) : 0);
-          if (pRow && need > Z(cV(pRow, 'produk', 'stok'))) return msg('stok kurang');
+          const pRow = findMasterProd(row, K.cur), same = oldRow && S2(cV(oldRow, K.cur, 'idproduk')) === S2(valOf('idproduk')), need = N(valOf('qty')) - (same ? N(cV(oldRow, K.cur, 'qty')) : 0);
+          if (pRow && need > N(cV(pRow, 'produk', 'stok'), true)) return msg('stok kurang');
         }
 
-        const pType = parentOf(K.cur);
+        const [pType, fk] = (!isTrx() && REL[K.cur]) ? REL[K.cur] : [null, null];
         if (pType && K.idx === -1) {
           if (!K.parent || K.parent.type !== pType) K.parent = getOpenTrx(pType) || { type: pType, id: genId(), open: true };
           if (!(K.db[pType] || []).some(r => S2(trxIdOf(pType, r)) === S2(K.parent.id))) {
@@ -563,12 +580,12 @@
             pCols.forEach((col, i) => { if (/date|tanggal/i.test(col)) newP[i] = today(); else if (col === 'user') newP[i] = K.u || 'admin'; else if (col === 'status') newP[i] = 'draft'; });
             (K.db[pType] = K.db[pType] || []).push(newP); save(newP, pType, 2);
           }
-          const fkI = c.indexOf(fkCol(K.cur)); if (fkI !== -1) row[fkI] = K.parent.id;
+          const fkI = c.indexOf(fk); if (fkI !== -1) row[fkI] = K.parent.id;
         }
         if (!row[0]) row[0] = genId();
         if (isTrx()) {
           const sI = cI(K.cur, 'status'), net = trxNet(K.cur, row), paid = paidOf(K.cur, row), kId = cV(row, K.cur, 'idkontak');
-          if (sI > -1) row[sI] = statusFor(net, paid, kId);
+          if (sI > -1) row[sI] = net <= 0 ? 'draft' : paid >= net ? 'lunas' : kId ? 'piutang' : 'draft';
           if ((row[sI] === 'piutang' || (net > 0 && paid < net)) && cI(K.cur, 'idkontak') !== -1 && !kId) return msg('piutang butuh kontak');
         }
 
@@ -578,9 +595,9 @@
         persist();
         if (pType && K.parent?.id) syncTrx(pType, false);
         const savedTrxId = isTrx() ? trxIdOf(K.cur, row) : null, wasPenjualan = K.cur === 'penjualan';
-        if (isTrx() && savedTrxId) { syncTrx(K.cur, true); if (!isOpenStatus(cV(row, K.cur, 'status'))) K.parent = null; }
+        if (isTrx() && savedTrxId) { syncTrx(K.cur, true); if (!['draft', 'revisi'].includes(S2(cV(row, K.cur, 'status')))) K.parent = null; }
         if (K.cur === 'cicil' && cV(row, 'cicil', 'idpenjualan')) syncTrx('penjualan', true);
-        K.prefill = K.conf = K.prodIdx = K.ret = null;
+        K.prefill = K.conf = K.ret = null;
         if (wasPenjualan && savedTrxId) { K.receiptRaw = formatNota(savedTrxId); setView('nota', null); } else if (pType) { K.cur = 'produk'; K.grid = true; setView('list', null); } else setView('list', null);
         render();
       } finally { K.writing = false; }
@@ -589,27 +606,26 @@
     'del-row': () => {
       if (K.conf !== 'del') { K.conf = 'del'; return render(); }
       const target = K.idx >= 0 ? K.db[K.cur][K.idx] : null; if (!target) return;
-      const id = isTrx() ? trxIdOf(K.cur, target) : target[0], pType = parentOf(K.cur), pid = pType ? (target[cI(K.cur, fkCol(K.cur))] || K.parent?.id) : null, delCicilJual = K.cur === 'cicil' ? cV(target, 'cicil', 'idpenjualan') : null;
-      K.idx = null; dropRows(K.cur, r => r === target);
+      const id = isTrx() ? trxIdOf(K.cur, target) : target[0], [pType, fk] = (!isTrx() && REL[K.cur]) ? REL[K.cur] : [null, null], pid = pType ? (target[cI(K.cur, fk)] || K.parent?.id) : null, delCicilJual = K.cur === 'cicil' ? cV(target, 'cicil', 'idpenjualan') : null;
+      K.idx = null; dropRows(K.cur, r => r === target, true);
       if (K.cur === 'skema') { const droppedSh = S2(id); if (droppedSh && !HARD.shs.includes(droppedSh)) save([droppedSh], droppedSh, -1); applySchemaTable(); syn(true); }
-      if (isTrx() && id) dropTrxDeps(K.cur, id);
       if (K.cur === 'kontak' && id) ['penjualan', 'pembelian', 'cicil'].forEach(sh => { const ki = cI(sh, 'idkontak'); if (ki !== -1) (K.db[sh] || []).forEach(r => { if (S2(r[ki]) === S2(id)) { r[ki] = ''; save(r, sh, 1); } }); });
       persist(); if (pType && pid) syncTrx(pType, false); if (delCicilJual) syncTrx('penjualan', true); setView('list', null); render();
     },
     'dup-row': () => { if (!(K.idx >= 0)) return; const old = (K.db[K.cur][K.idx] || []).slice(); K.prefill = Object.fromEntries(cols().map((col, i) => [col, i === 0 ? genId() : (old[i] || '')])); setView('form', -1); render(); },
     'trx-pick-kontak': () => { if (!K.shs.includes('kontak')) return; K.ret = { cur: K.cur, idx: K.idx, parent: K.parent, form: formState(), col: 'idkontak' }; K.cur = 'kontak'; setView('list', null); dom.q.value = ''; K.page = 1; render(); },
-    'pay-pas': () => { const r = K.idx >= 0 ? K.db[K.cur][K.idx] : null, pid = r ? trxIdOf(K.cur, r) : (fld(cols()[0])?.value || ''), bayar = fld('bayar'); if (bayar && pid) { const { raw, disc } = calcItems(K.cur, pid); bayar.value = String(Math.max(0, raw - disc - N(fld('diskon')?.value || (r ? cV(r, K.cur, 'diskon') : 0)))); } },
-    revisi: () => { if (!(K.idx >= 0)) return; const r = K.db[K.cur][K.idx], pid = trxIdOf(K.cur, r); if (!pid) return; K.parent = { type: K.cur, id: pid, open: true }; const sI = cI(K.cur, 'status'); if (sI !== -1) { r[sI] = 'revisi'; save(r, K.cur, 1); persist(); } K.cur = childOf(K.cur); setView('list', null); render(); },
+    'pay-pas': () => { const r = K.idx >= 0 ? K.db[K.cur][K.idx] : null, pid = r ? trxIdOf(K.cur, r) : (qForm(cols()[0])?.value || ''), bayar = qForm('bayar'); if (bayar && pid) { const { raw, disc } = calcItems(K.cur, pid); bayar.value = String(Math.max(0, raw - disc - N(qForm('diskon')?.value || (r ? cV(r, K.cur, 'diskon') : 0)))); } },
+    revisi: () => { if (!(K.idx >= 0)) return; const r = K.db[K.cur][K.idx], pid = trxIdOf(K.cur, r); if (!pid) return; K.parent = { type: K.cur, id: pid, open: true }; const sI = cI(K.cur, 'status'); if (sI !== -1) { r[sI] = 'revisi'; save(r, K.cur, 1); persist(); } K.cur = REL[K.cur][0]; setView('list', null); render(); },
     cicil: () => { if (!(K.idx >= 0)) return; const r = K.db[K.cur][K.idx], pid = trxIdOf('penjualan', r); if (!pid) return; if (!K.shs.includes('cicil')) K.shs.push('cicil'); const rem = Math.max(0, trxNet('penjualan', r) - paidOf('penjualan', r)); K.cur = 'cicil'; K.prefill = { idpenjualan: pid, idkontak: cV(r, 'penjualan', 'idkontak'), date: today(), user: K.u || 'admin', jumlah: rem > 0 ? String(rem) : '' }; setView('form', -1); render(); },
-    'trx-rincian': () => { if (!(K.idx >= 0)) return; const pid = trxIdOf(K.cur, K.db[K.cur][K.idx]); if (pid) { K.parent = { type: K.cur, id: pid, open: true }; K.cur = childOf(K.cur); setView('list', null); render(); } },
+    'trx-rincian': () => {
+      if (isTrx() && K.idx >= 0) { const pid = trxIdOf(K.cur, K.db[K.cur][K.idx]); if (pid) { K.parent = { type: K.cur, id: pid, open: true }; K.cur = REL[K.cur][0]; setView('list', null); render(); } }
+      else if (K.parent) { const fi = (K.db[K.parent.type] || []).findIndex(r => S2(trxIdOf(K.parent.type, r)) === S2(K.parent.id)); K.cur = K.parent.type; setView('form', fi !== -1 ? fi : null); render(); }
+    },
     'show-nota': () => { const pid = (K.cur === 'penjualan' && K.idx >= 0) ? trxIdOf('penjualan', K.db.penjualan[K.idx]) : (K.parent?.type === 'penjualan' ? K.parent.id : trxIdOf('penjualan', K.db.penjualan?.[0])); if (pid) { K.receiptRaw = formatNota(pid); setView('nota', null); render(); } },
     rawbt: () => {
       if (!K.receiptRaw) return;
       const lines = K.receiptRaw.split(/\r?\n/), sepIdx = lines.lastIndexOf('-'.repeat(32));
-      const escpos = '\x1B\x40' + lines.map((l, i) => {
-        const isCenter = i < 4 || (sepIdx > 0 && i > sepIdx);
-        return (isCenter ? '\x1B\x61\x01' + l.trim() : '\x1B\x61\x00' + l);
-      }).join('\r\n') + '\x1B\x61\x00\r\n\r\n\r\n';
+      const escpos = '\x1B\x40' + lines.map((l, i) => ((i < 4 || (sepIdx > 0 && i > sepIdx)) ? '\x1B\x61\x01' + l.trim() : '\x1B\x61\x00' + l)).join('\r\n') + '\x1B\x61\x00\r\n\r\n\r\n';
       const u = encodeURIComponent(escpos);
       W.location.href = /Android/i.test(navigator.userAgent) ? `intent:${u}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;` : `rawbt:${u}`;
     },
@@ -622,34 +638,40 @@
       can.toBlob(blob => { if (!blob) return; const dlPng = () => { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = `nota_${Date.now()}.png`; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(u); }, 500); }; try { navigator.clipboard && W.ClipboardItem ? navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).catch(dlPng) : dlPng(); } catch { dlPng(); } }, 'image/png');
     },
     print: () => W.print(),
-    'reset-db': async () => { if (K.conf !== 'reset-db') { K.conf = 'reset-db'; return msg('reset? klik lagi'); } K.conf = null; idbClear('kv'); idbClear('mut'); K.shs.forEach(s => K.db[s] = []); applySchemaTable(); L.vs = '[]'; persist(); render(); await syn(true); render(); },
+    'reset-db': async () => { if (K.conf !== 'reset-db') { K.conf = 'reset-db'; return msg('reset? klik lagi'); } K.conf = null; idbMut(s => s.clear(), 'kv'); idbMut(s => s.clear(), 'mut'); K.shs.forEach(s => K.db[s] = []); applySchemaTable(); L.vs = '[]'; persist(); render(); await syn(true); render(); },
     'save-bulk': () => { const n = cols().length; dom.ls.querySelectorAll('[data-idx]').forEach(div => { const idx = parseInt(div.dataset.idx, 10); if (isNaN(idx) || !K.db[K.cur][idx]) return; const p = div.textContent.split('|').map(s => s.trim()); while (p.length < n) p.push(''); K.db[K.cur][idx] = p.slice(0, n); save(K.db[K.cur][idx], K.cur, 1); }); if (K.cur === 'skema') applySchemaTable(); persist(); syn(true); setView('list', null); render(); },
-    grid: () => { K.grid = !K.grid; render(); }, dir: () => { K.dir = -K.dir; K.page = 1; render(); }, more: () => { K.page++; render(); },
     logout: () => { K.u = L.u = ''; K.parent = K.ret = K.prev = null; K.slice = ''; persist(); render(); },
-    cam: () => dom.fCam.click(), pic: () => dom.fImg.click(), 'doc-upload': () => dom.fDoc.click(),
-    gimg: () => { const q = fld('namaproduk')?.value || fld('nama')?.value || dom.q.value || ''; if (q) W.open('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(q), '_blank', 'noopener,noreferrer'); },
-    navigasi: () => { const loc = (fldBy(GEO_RE)?.value || '').trim(); if (!loc) return; /Android|iPhone|iPad/i.test(navigator.userAgent) ? (W.location.href = `geo:${loc}?q=${encodeURIComponent(loc)}`) : W.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(loc)}`, '_blank', 'noopener,noreferrer'); },
-    gps: () => { const trg = fldBy(GEO_RE); if (trg && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { trg.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => msg('gps err'), { enableHighAccuracy: true, timeout: 5000 }); },
-    'sh-sel': el => { K.cur = el.value; K.parent = K.prefill = K.prodIdx = K.ret = null; setView('list', null); K.page = 1; K.slice = ''; render(); },
+    gimg: () => { const q = qForm('namaproduk')?.value || qForm('nama')?.value || dom.q.value || ''; if (q) W.open('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(q), '_blank', 'noopener,noreferrer'); }, // No. 136
+    navigasi: () => { const loc = (qForm(GEO_RE)?.value || '').trim(); if (!loc) return; /Android|iPhone|iPad/i.test(navigator.userAgent) ? (W.location.href = `geo:${loc}?q=${encodeURIComponent(loc)}`) : W.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(loc)}`, '_blank', 'noopener,noreferrer'); },
+    gps: () => { const trg = qForm(GEO_RE); if (trg && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { trg.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => msg('gps err'), { enableHighAccuracy: true, timeout: 5000 }); },
+    'sh-sel': el => { K.cur = el.value; K.parent = K.prefill = K.ret = null; setView('list', null); K.page = 1; K.slice = ''; render(); },
     'st-sel': el => { K.sort = parseInt(el.value, 10) || 0; K.page = 1; render(); },
     'act-sel': el => {
       const a = el.value; el.value = ''; if (!a) return;
       if (a === 'edit') { setView(K.v === 'edit' ? 'list' : 'edit', null); render(); }
       else if (a === 'tsv') dl([cols().join('\t'), ...(K.db[K.cur] || []).map(r => r.join('\t'))].join('\n'), `${K.cur}_${today()}.tsv`, 'text/tab-separated-values;charset=utf-8');
-      else if (a === 'imp') dom.fImp.click();
+      else if (a === 'imp') pickFile('imp', '.tsv,.txt,.csv');
       else if (a === 'clear') { if (K.conf !== 'clear') { K.conf = 'clear'; return msg(`clear ${K.cur}?`); } (K.db[K.cur] || []).forEach(r => save(r, K.cur, 0)); K.db[K.cur] = []; K.conf = null; persist(); syn(true); render(); }
     }
   };
 
   /* Events & Boot */
+  const PROD_SHEET = { 'jual-prod': 'produk_jual', 'beli-prod': 'produk_beli', 'ecer-prod': 'ecer' };
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-a]');
     if (b) {
       if (b.tagName === 'SELECT') return;
       const a = b.dataset.a;
-      if (a.startsWith('ref-kontak-trx-')) { K.cur = a.slice(15); K.slice = ''; setView('list', null); dom.q.value = (b.dataset.kid || '').trim(); K.page = 1; return render(); }
-      if (a.startsWith('ref-')) { const cName = b.dataset.refCol || ''; K.ret = { cur: K.cur, idx: K.idx, parent: K.parent, form: formState(), col: cName }; K.cur = a.slice(4); setView('list', null); dom.q.value = (cName ? (fld(cName)?.value || '') : '').trim(); K.page = 1; return render(); }
       if (!['del-row', 'clear-items', 'batal-trx', 'act-sel', 'reset-db'].includes(a) && K.conf) { K.conf = null; msg(); }
+      if (a === 'closemsg') return render();
+      if (a === 'grid' || a === 'dir' || a === 'more') { if (a === 'grid') K.grid = !K.grid; else if (a === 'dir') { K.dir = -K.dir; K.page = 1; } else K.page++; return render(); }
+      if (a === 'df-today' || a === 'df-clear') { K.df = a === 'df-today' ? { ...K.df, from: today(), to: today() } : { u: '', from: '', to: '', kat: '' }; persist(); return render(); }
+      if (a === 'cam') return pickFile('img', 'image/*', 'environment');
+      if (a === 'pic') return pickFile('img', 'image/*');
+      if (a === 'doc-upload') return pickFile('doc');
+      if (PROD_SHEET[a]) return openProdForm(K.db.produk[K.idx] || [], PROD_SHEET[a]);
+      if (a.startsWith('ref-kontak-trx-')) { K.cur = a.slice(15); K.slice = ''; setView('list', null); dom.q.value = (b.dataset.kid || '').trim(); K.page = 1; return render(); }
+      if (a.startsWith('ref-')) { const cName = b.dataset.refCol || ''; K.ret = { cur: K.cur, idx: K.idx, parent: K.parent, form: formState(), col: cName }; K.cur = a.slice(4); setView('list', null); dom.q.value = (cName ? (qForm(cName)?.value || '') : '').trim(); K.page = 1; return render(); }
       return actions[a]?.(b, e);
     }
     const r = e.target.closest('#list>[data-idx]');
@@ -670,10 +692,10 @@
     if (t.dataset.col) {
       updateFormThumb(t);
       if (['idproduk', 'namaproduk'].includes(t.dataset.col) && K.cur !== 'produk') {
-        const q = S2(t.value), f = q && K.db.produk?.find(p => prodIdOf(p) === q || S2(cV(p, 'produk', 'namaproduk')) === q);
-        if (f) { if (K.idx === -1) K.prefill = Object.assign(K.prefill || {}, prefillProd(f)); flds().forEach(inp => { if (['idproduk', 'namaproduk', 'hargabeli', 'hargajual'].includes(inp.dataset.col)) { const fi = cI('produk', inp.dataset.col); if (fi !== -1) inp.value = f[fi] || ''; } }); }
+        const f = S2(t.value) && findMasterProd(cols().map(c => c === t.dataset.col ? t.value : ''), K.cur);
+        if (f) { const pre = openProdForm(f, null, true); if (K.idx === -1) K.prefill = Object.assign(K.prefill || {}, pre); qForm().forEach(inp => { if (['idproduk', 'namaproduk', 'hargabeli', 'hargajual'].includes(inp.dataset.col)) { const fi = cI('produk', inp.dataset.col); if (fi !== -1) inp.value = f[fi] || ''; } }); }
       }
-      refreshRefButtons();
+      syncRefBtns();
     }
   });
 
@@ -682,25 +704,26 @@
 
   document.addEventListener('change', e => {
     const t = e.target; if (t.dataset.a && actions[t.dataset.a]) actions[t.dataset.a](t);
-    const file = t.files?.[0]; if (!file) return;
-    if (t === dom.fCam || t === dom.fImg || t === dom.fDoc) {
-      const isDoc = t === dom.fDoc, trgCol = isDoc ? 'file' : 'foto', tInp = fld(trgCol) || fldBy(new RegExp(trgCol, 'i')), jInp = isDoc ? fldBy(/judul|nama/i) : null;
+    const file = t.files?.[0]; if (!file || t.id !== 'f-up') return;
+    if (upMode === 'img' || upMode === 'doc') {
+      const isDoc = upMode === 'doc', trgCol = isDoc ? 'file' : 'foto', tInp = qForm(trgCol) || qForm(new RegExp(trgCol, 'i')), jInp = isDoc ? qForm(/judul|nama/i) : null;
       if (jInp && !jInp.value) jInp.value = file.name;
       const applyData = data => { if (tInp) { tInp.value = data; updateFormThumb(tInp); } };
-      isDoc ? readFile(file, 'readAsDataURL', applyData) : compressImg(file, applyData); t.value = '';
-    } else if (t === dom.fImp) {
+      isDoc ? readFile(file, 'readAsDataURL', applyData) : compressImg(file, applyData);
+    } else if (upMode === 'imp') {
       readFile(file, 'readAsText', text => {
         const lines = text.split(/\r?\n/).filter(Boolean); if (!lines.length) return;
         const sep = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ','), c = cols(), start = lines[0].split(sep).map(S2).every(h => c.includes(h)) ? 1 : 0;
         for (let i = start; i < lines.length; i++) { const parts = lines[i].split(sep).map(s => s.trim()), row = new Array(c.length).fill(''); for (let j = 0; j < Math.min(parts.length, c.length); j++) row[j] = parts[j]; if (!row[0]) row[0] = genId(); (K.db[K.cur] = K.db[K.cur] || []).push(row); save(row, K.cur, 2); }
         if (K.cur === 'skema') applySchemaTable(); persist(); syn(true); render();
-      }); t.value = '';
+      });
     }
+    t.value = '';
   });
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && dom.fb.contains(e.target)) { e.preventDefault(); if (!K.writing) (!K.u ? actions.login : actions['save-row'])(); }
-    else if (e.key === 'Escape') !dom.scanBox.hidden ? stopScan() : actions.back();
+    else if (e.key === 'Escape') !$('scan-box').hidden ? stopScan() : actions.back();
   });
 
   W.addEventListener('online', () => syn(true));
@@ -708,7 +731,7 @@
   if (navigator.serviceWorker && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('./sw.js').catch(() => {});
 
   (() => {
-    if (L.theme) applyTheme(L.theme);
+    if (L.theme) setTheme(L.theme);
     try {
       const d = JSON.parse(L.getItem('apex') || 'null');
       if (d && typeof d === 'object') { ['shs', 'cols', 'vis', 'fvis'].forEach(k => { if (d[k]) K[k] = d[k]; }); if (d.parent) K.parent = d.parent; if (d.cur && K.shs.includes(d.cur)) K.cur = d.cur; if (d.u) K.u = L.u = d.u; if (d.df) Object.assign(K.df, d.df); K.grid = Boolean(d.grid); }
