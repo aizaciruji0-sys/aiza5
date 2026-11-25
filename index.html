@@ -131,7 +131,13 @@
     try {
       if (force) L.vs = '[]';
       const ver = JSON.parse(L.vs || '[]'), queued = await idbOp('mut', 'readonly', s => s.getAll(), []);
-      if (queued.length) { const pr = await req({ a: 'push', m: queued, tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl }); if (!pr.ok) throw 0; idbMut(s => queued.forEach(x => s.delete(x.i))); }
+      if (queued.length) {
+        const dedupQ = new Map();
+        queued.forEach(x => { const pk = S2(Array.isArray(x.r) ? x.r[0] : ''); if (x.tn && pk) dedupQ.set(`${S2(x.tn)}\0${pk}`, x); });
+        const pr = await req({ a: 'push', m: [...dedupQ.values()], tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl });
+        if (!pr.ok) throw 0;
+        idbMut(s => queued.forEach(x => s.delete(x.i)));
+      }
       let m = (force && await req({ a: 'sync_gas', tn: K.shs, cols: K.cols, gasUrl: HARD.gasUrl })) || null;
       if (!m?.v) m = await req({ a: 'manifest', tn: K.shs, cols: K.cols });
       if (!m?.v) throw 0;
@@ -145,6 +151,7 @@
         const b = await req({ a: 'pull_batch', reqs: toPull, tn: K.shs, cols: K.cols });
         if (b.ok && Array.isArray(b.results)) {
           b.results.forEach(x => { const name = K.shs[x?.t]; if (!name || !x?.v) return; ver[x.t] = x.v; if (!K.cols[name] && x.cols?.length) K.cols[name] = x.cols; K.db[name] = dedupeRows(remapRows(x.r || [], x.cols, K.cols[name])); });
+          if (force) Object.keys(K.db).forEach(k => { if (!m.shs.includes(k) && !HARD.shs.includes(k)) delete K.db[k]; });
           applySchemaTable(); L.vs = JSON.stringify(ver); persist(); bc.postMessage('synced'); safeRender();
         }
       }
@@ -487,14 +494,27 @@
         if (rules.includes('wajibstok') && ['produk_jual', 'ecer'].includes(K.cur)) { const pRow = findMasterProd(row, K.cur), same = oldRow && S2(cV(oldRow, K.cur, 'idproduk')) === S2(valOf('idproduk')), need = N(valOf('qty')) - (same ? N(cV(oldRow, K.cur, 'qty')) : 0); if (pRow && need > N(cV(pRow, 'produk', 'stok'), true)) return msg('stok kurang'); }
         const [pType, fk] = (!isTrx(K.cur) && REL[K.cur]) ? REL[K.cur] : [null, null];
         if (pType && K.idx === -1) {
-          if (!K.parent || K.parent.type !== pType) K.parent = getOpenTrx(pType) || { type: pType, id: genId(pType), open: true };
-          if (!(K.db[pType] || []).some(r => S2(trxIdOf(pType, r)) === S2(K.parent.id))) { const pCols = cols(pType), newP = new Array(pCols.length).fill(''); newP[Math.max(0, pCols.indexOf(`id${pType}`))] = K.parent.id; pCols.forEach((col, i) => { if (DATE_RE.test(col)) newP[i] = today(); else if (col === 'user') newP[i] = K.u || 'admin'; else if (col === 'status') newP[i] = 'draft'; }); (K.db[pType] = K.db[pType] || []).push(newP); save(newP, pType, 2); }
+          if (!K.parent || K.parent.type !== pType) K.parent = getOpenTrx(pType) || { type: pType, id: genId(), open: true };
+          if (!(K.db[pType] || []).some(r => S2(trxIdOf(pType, r)) === S2(K.parent.id))) {
+            const pCols = cols(pType), newP = new Array(pCols.length).fill('');
+            newP[Math.max(0, pCols.indexOf(`id${pType}`))] = K.parent.id;
+            pCols.forEach((col, i) => { if (DATE_RE.test(col)) newP[i] = today(); else if (col === 'user') newP[i] = K.u || 'admin'; else if (col === 'status') newP[i] = 'draft'; });
+            (K.db[pType] = K.db[pType] || []).push(newP); save(newP, pType, 2);
+          }
           const fkI = c.indexOf(fk); if (fkI !== -1) row[fkI] = K.parent.id;
         }
         if (!row[0]) row[0] = genId();
         if (isTrx(K.cur)) { const sI = cI(K.cur, 'status'), net = trxNet(K.cur, row), paid = paidOf(K.cur, row), kId = cV(row, K.cur, 'idkontak'); if (sI > -1) row[sI] = net <= 0 ? 'draft' : paid >= net ? 'lunas' : kId ? 'piutang' : 'draft'; if ((row[sI] === 'piutang' || (net > 0 && paid < net)) && cI(K.cur, 'idkontak') !== -1 && !kId) return msg('piutang butuh kontak'); }
-        if (K.idx === -1) { syncMasterProduk(K.cur, null, row); (K.db[K.cur] = K.db[K.cur] || []).push(row); save(row, K.cur, 2); }
-        else if (K.idx >= 0) { syncMasterProduk(K.cur, oldRow, row); if (oldRow && S2(oldRow[0]) !== S2(row[0])) save(oldRow, K.cur, 0); K.db[K.cur][K.idx] = row; save(row, K.cur, 1); }
+        if (K.idx === -1) {
+          if ((K.db[K.cur] || []).some(r => S2(r[0]) === S2(row[0]))) return msg('id sudah ada');
+          syncMasterProduk(K.cur, null, row);
+          (K.db[K.cur] = K.db[K.cur] || []).push(row); save(row, K.cur, 2);
+        } else if (K.idx >= 0) {
+          syncMasterProduk(K.cur, oldRow, row);
+          if (oldRow && S2(oldRow[0]) !== S2(row[0])) save(oldRow, K.cur, 0);
+          K.db[K.cur][K.idx] = row; save(row, K.cur, 1);
+        }
+        K.db[K.cur] = dedupeRows(K.db[K.cur]);
         if (K.cur === 'skema') { if (oldRow?.[0] && oldRow[0] !== row[0] && !HARD.shs.includes(S2(oldRow[0]))) save([S2(oldRow[0])], S2(oldRow[0]), -1); applySchemaTable(); syn(true); }
         persist(); if (pType && K.parent?.id) syncTrx(pType, false);
         const savedTrxId = isTrx(K.cur) ? trxIdOf(K.cur, row) : null, wasPenjualan = K.cur === 'penjualan';
