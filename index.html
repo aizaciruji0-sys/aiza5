@@ -22,6 +22,7 @@
     header>input{flex:1;min-width:60px}header>button{flex:none;min-width:var(--h);padding:0 12px}#msg{padding:6px 4px;font-weight:bold}
     #box-dash,#list{display:grid;gap:var(--g);width:100%}#box-dash{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}#box-dash>button{padding:0 8px;text-align:left}
     #list{grid-template-columns:minmax(0,1fr)}#list>div{padding:12px 4px;min-height:var(--h);display:flex;align-items:center}
+    body[data-cart="1"] #list{max-height:42dvh;overflow-y:auto;border-top:1px solid;border-bottom:1px solid}
     body[data-grid="1"] #list{grid-template-columns:repeat(auto-fill,minmax(min(100%,max(130px,calc(20% - 4px))),1fr))}
     body[data-grid="1"] #list>div{flex-direction:column;align-items:flex-start;padding:4px}body[data-grid="1"] #list img{display:block;width:100%;height:85px;object-fit:cover;margin-bottom:4px}
     #tape{width:100%;min-height:calc(100dvh - 70px);white-space:pre-wrap;font:13px/1.35 monospace;padding:8px}
@@ -424,46 +425,51 @@
     renderNavFooters();
   };
 
-  /* ---------------- EXEMPTED: CMS DETAIL ---------------- */
   const renderCmsDetail = () => {
     const r = K.db.cms?.[K.idx] || [], g = k => cV(r, 'cms', k), foto = isSafeUrl(g('foto')) ? g('foto') : '', file = g('file');
     dom.fb.innerHTML = `<b>${esc(g('judul') || '-')}</b><small>${esc(g('date'))} ${g('user') ? '| ' + esc(g('user')) : ''} ${g('kategori') ? '| ' + esc(g('kategori')) : ''} ${g('status') ? '| [' + esc(g('status')) + ']' : ''}</small><p>${esc(g('konten'))}</p>${foto ? `<img src="${esc(foto)}" alt="cms"><br>` : ''}${file ? `<button data-a="dl-cms-file">unduh lampiran</button><br>` : ''}`;
     addFooter('back', '<');
     if (file) addFooter('dl-cms-file', 'unduh file');
-    addFooter('edit-cms', 'edit'); renderNavFooters();
+    addFooter('edit-cms', 'edit');
+    renderNavFooters();
+  };
+
+  const renderFormFields = (sh, row, idx, formCols) => {
+    const c = cols(sh), restored = (K.ret && K.ret.cur === sh && K.ret.idx === idx) ? K.ret.form : null;
+    if (restored) K.ret = null;
+    formCols.forEach(col => {
+      let val = (idx === -1 && c.indexOf(col) === 0 && sh !== 'skema') ? genId() : (row[c.indexOf(col)] ?? '');
+      if (restored?.[col] != null) val = restored[col];
+      else if (idx === -1 && K.prefill?.[col] != null) val = K.prefill[col];
+      else if (idx === -1 && !val && DATE_RE.test(col)) val = today();
+      else if (idx === -1 && !val && col === 'user') val = K.u || 'admin';
+      else if (idx === -1 && !val && sh === 'cms' && col === 'status') val = 'publish';
+      const isLong = /catatan|alamat|uraian|konten|akses|hide|validasi/i.test(col), tag = isLong ? 'textarea' : 'input';
+      dom.fb.insertAdjacentHTML('beforeend', `<${tag} ${DATE_RE.test(col) ? 'type="date"' : ''} placeholder="${esc(col)}" value="${esc(val)}" data-col="${esc(col)}">${isLong ? esc(val) : ''}</${tag}>`);
+      updateFormThumb(qForm(col));
+    });
+  };
+  const renderSharedFormFooters = (sh, row, formCols) => {
+    const c = cols(sh);
+    formCols.forEach(col => { const trg = resolveRef(col, c.indexOf(col)); if (trg && hasAccess(trg)) addFooter(`ref-${trg}`, `ref ${trg}`, sh, `data-ref-col="${esc(col)}"${hasRefMatch(trg, qForm(col)?.value) ? '' : ' hidden'}`); });
+    if (formCols.some(k => FOTO_RE.test(k))) { addFooter('cam', 'kamera', sh); addFooter('pic', 'file foto', sh); }
+    if (formCols.some(k => /file/i.test(k))) addFooter('doc-upload', 'upload berkas', sh);
+    if (formCols.some(k => GEO_RE.test(k))) { addFooter('gps', 'gps', sh); if (/(-?\d+\.\d+),\s*(-?\d+\.\d+)/.test(formCols.map(col => row[c.indexOf(col)] || '').join(' '))) addFooter('navigasi', 'navigasi', sh); }
   };
 
   const renderForm = () => {
     if (!K.u) { dom.fb.innerHTML = '<input placeholder="user" autocomplete="off" data-f="user"><input type="password" placeholder="password" data-f="password">'; addFooter('login', 'login'); addFooter('reg', 'register'); addFooter('bypass', 'bypass admin'); return; }
     if (K.cur === 'cms' && K.v === 'cms_detail') return renderCmsDetail();
-    const c = cols(), bypassAdd = K.idx === -1 && ['produk', 'kas', 'skema'].includes(K.cur), formCols = bypassAdd ? fvis() : fvis().filter(col => hasAccess(col, K.cur));
-    const row = (K.idx !== null && K.idx >= 0) ? (K.db[K.cur][K.idx] || []) : [], stVal = S2(cV(row, K.cur, 'status')), isOpen = isTrx() && isOpenStatus(stVal), isDraft = isTrx() && stVal === 'draft';
-    if (isTrx() && K.idx !== null && K.idx >= 0) {
-      const { cogs, pot } = calcItems(K.cur, trxIdOf(K.cur, row)), net = trxNet(K.cur, row);
-      msg(`total: ${fmtNum(net)}${hasAccess('profit', K.cur) ? ` | profit: ${fmtNum(K.cur === 'penjualan' ? (net - cogs) : (pot - net))}` : ''}`);
-    } else msg();
-    const restored = (K.ret && K.ret.cur === K.cur && K.ret.idx === K.idx) ? K.ret.form : null;
-    if (restored) K.ret = null;
-    formCols.forEach(col => {
-      let val = (K.idx === -1 && c.indexOf(col) === 0 && K.cur !== 'skema') ? genId() : (row[c.indexOf(col)] ?? '');
-      if (restored?.[col] != null) val = restored[col];
-      else if (K.idx === -1 && K.prefill?.[col] != null) val = K.prefill[col];
-      else if (K.idx === -1 && !val && DATE_RE.test(col)) val = today();
-      else if (K.idx === -1 && !val && col === 'user') val = K.u || 'admin';
-      else if (K.idx === -1 && !val && K.cur === 'cms' && col === 'status') val = 'publish';
-      const isLong = /catatan|alamat|uraian|konten|akses|hide|validasi/i.test(col), tag = isLong ? 'textarea' : 'input';
-      dom.fb.insertAdjacentHTML('beforeend', `<${tag} ${DATE_RE.test(col) ? 'type="date"' : ''} placeholder="${esc(col)}" value="${esc(val)}" data-col="${esc(col)}">${isLong ? esc(val) : ''}</${tag}>`);
-      updateFormThumb(qForm(col));
-    });
+    const bypassAdd = K.idx === -1 && ['produk', 'kas', 'skema'].includes(K.cur), formCols = bypassAdd ? fvis() : fvis().filter(col => hasAccess(col, K.cur));
+    const row = (K.idx !== null && K.idx >= 0) ? (K.db[K.cur][K.idx] || []) : [], isDraft = isTrx() && S2(cV(row, K.cur, 'status')) === 'draft';
+    msg();
+    renderFormFields(K.cur, row, K.idx, formCols);
     if (K.idx === -1 && getRoleRules().includes('wajiblokasi')) { const loc = qForm(GEO_RE); if (loc && !loc.value && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { if (!loc.value) loc.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => { loc.value = 'here()'; }, { timeout: 4000 }); }
     addFooter('back', '<'); addFooter('save-row', 'save');
     if (isTrx()) addFooter('trx-pick-kontak', 'kontak');
-    formCols.forEach(col => { const trg = resolveRef(col, c.indexOf(col)); if (trg && hasAccess(trg)) addFooter(`ref-${trg}`, `ref ${trg}`, K.cur, `data-ref-col="${esc(col)}"${hasRefMatch(trg, qForm(col)?.value) ? '' : ' hidden'}`); });
+    renderSharedFormFooters(K.cur, row, formCols);
     if (K.cur === 'kontak' && K.idx !== null && K.idx >= 0) { const kId = cV(row, 'kontak', 'idkontak') || row[0]; if (S2(kId)) ['penjualan', 'pembelian'].forEach(tSh => { if (hasAccess(tSh)) addFooter(`ref-kontak-trx-${tSh}`, `ref ${tSh}`, K.cur, `data-kid="${esc(kId)}"`); }); }
-    if (formCols.some(k => FOTO_RE.test(k))) { addFooter('cam', 'kamera'); addFooter('pic', 'file foto'); }
-    if (formCols.some(k => /file/i.test(k))) addFooter('doc-upload', 'upload berkas');
     if (K.cur === 'produk') addFooter('gimg', 'gimg');
-    if (formCols.some(k => GEO_RE.test(k))) { addFooter('gps', 'gps'); if (/(-?\d+\.\d+),\s*(-?\d+\.\d+)/.test(formCols.map(col => row[c.indexOf(col)] || '').join(' '))) addFooter('navigasi', 'navigasi'); }
     if (K.cur === 'produk' && K.idx !== null && K.idx >= 0) { addFooter('jual-prod', 'jual'); addFooter('beli-prod', 'beli'); addFooter('ecer-prod', 'ecer'); }
     if (STOCK_SHEETS.includes(K.cur) && (findMasterProd(row, K.cur) || (K.prefill && findMasterProd([K.prefill.idproduk, '', '', K.prefill.namaproduk], 'produk')))) addFooter('edit-prod', 'edit produk');
     if (K.idx !== null && K.idx >= 0) {
@@ -475,18 +481,12 @@
 
   const renderList = isBulkEdit => {
     msg();
-    const [pType] = !isBulkEdit ? parentRel(K.cur) : [null], op = pType ? getOpenTrx(pType) : null;
-    if (pType && op) {
+    const [pType] = !isBulkEdit ? parentRel(K.cur) : [null], op = pType ? getOpenTrx(pType) : null, isCart = Boolean(pType && op);
+    document.body.dataset.cart = isCart ? '1' : '0';
+    if (isCart) {
       K.parent = { type: pType, id: op.id, open: true };
-      const pIdx = (K.db[pType] || []).indexOf(op.row), pCols = cols(pType), pFormCols = fvis(pType).filter(col => hasAccess(col, pType));
-      const restored = (K.ret && K.ret.cur === pType && K.ret.idx === pIdx) ? K.ret.form : null;
-      if (restored) K.ret = null;
-      pFormCols.forEach(col => {
-        const val = restored?.[col] != null ? restored[col] : (op.row[pCols.indexOf(col)] ?? '');
-        const isLong = /catatan|alamat|uraian|konten|akses|hide|validasi/i.test(col), tag = isLong ? 'textarea' : 'input';
-        dom.fb.insertAdjacentHTML('beforeend', `<${tag} ${DATE_RE.test(col) ? 'type="date"' : ''} placeholder="${esc(col)}" value="${esc(val)}" data-col="${esc(col)}">${isLong ? esc(val) : ''}</${tag}>`);
-        updateFormThumb(qForm(col));
-      });
+      const pIdx = (K.db[pType] || []).indexOf(op.row), pFormCols = fvis(pType).filter(col => hasAccess(col, pType));
+      renderFormFields(pType, op.row, pIdx, pFormCols);
       dom.fb.hidden = false;
       const { cogs, pot } = calcItems(pType, op.id), net = trxNet(pType, op.row);
       msg(`total: ${fmtNum(net)}${hasAccess('profit', pType) ? ` | profit: ${fmtNum(pType === 'penjualan' ? (net - cogs) : (pot - net))}` : ''}`);
@@ -512,15 +512,13 @@
     if (isBulkEdit) { addFooter('back', '<'); addFooter('save-bulk', 'save'); }
     else if (K.ret) addFooter('back', '<');
     else {
-      if (pType && op) {
-        const pCols = cols(pType), pFormCols = fvis(pType).filter(col => hasAccess(col, pType)), pIdx = (K.db[pType] || []).indexOf(op.row), stVal = S2(cV(op.row, pType, 'status')), isDraft = stVal === 'draft';
+      if (isCart) {
+        const pFormCols = fvis(pType).filter(col => hasAccess(col, pType)), isDraft = S2(cV(op.row, pType, 'status')) === 'draft';
         addFooter('back', '<');
         addFooter('add-cart-item', '+item');
         addFooter('cart-save-trx', 'save', pType);
         addFooter('trx-pick-kontak', 'kontak', pType);
-        pFormCols.forEach(col => { const trg = resolveRef(col, pCols.indexOf(col)); if (trg && hasAccess(trg)) addFooter(`ref-${trg}`, `ref ${trg}`, pType, `data-ref-col="${esc(col)}" data-ref-src="${esc(pType)}" data-ref-idx="${pIdx}"${hasRefMatch(trg, qForm(col)?.value) ? '' : ' hidden'}`); });
-        if (pFormCols.some(k => FOTO_RE.test(k))) { addFooter('cam', 'kamera', pType); addFooter('pic', 'file foto', pType); }
-        if (pFormCols.some(k => GEO_RE.test(k))) { addFooter('gps', 'gps', pType); if (/(-?\d+\.\d+),\s*(-?\d+\.\d+)/.test(pFormCols.map(col => op.row[pCols.indexOf(col)] || '').join(' '))) addFooter('navigasi', 'navigasi', pType); }
+        renderSharedFormFooters(pType, op.row, pFormCols);
         addFooter('pay-pas', 'pas', pType);
         if (pType === 'penjualan') addFooter('show-nota', 'nota', pType);
         addFooter('cicil', 'cicil', pType);
@@ -533,6 +531,20 @@
   };
 
   const renderNota = () => { msg(); dom.tape.textContent = K.receiptRaw; addFooter('back', '<'); addFooter('rawbt', 'rawbt'); addFooter('jpg', 'jpg'); addFooter('print', 'print'); renderNavFooters(); };
+  const compactFooter = () => {
+    const btns = [...dom.ft.querySelectorAll('button[data-a]')];
+    if (btns.length <= 4) return;
+    const sel = document.createElement('select');
+    sel.dataset.a = 'ft-sel';
+    sel.innerHTML = '<option value="" disabled selected>act</option>';
+    btns.slice(4).forEach((b, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i); opt.textContent = b.textContent; opt.hidden = b.hidden;
+      opt._btn = b; b.hidden = true;
+      sel.appendChild(opt);
+    });
+    dom.ft.appendChild(sel);
+  };
   const updateFormThumb = inp => {
     if (!inp) return;
     const col = inp.dataset.col || '', val = (inp.value || '').trim();
@@ -545,8 +557,8 @@
   const persist = () => { try { L.setItem('apex', JSON.stringify({ cur: K.cur, u: K.u, shs: K.shs, cols: K.cols, vis: K.vis, fvis: K.fvis, parent: K.parent, grid: K.grid, df: K.df })); idbWrite('kv', s => s.put(K.db, 'apex_matrix')); } catch {} };
 
   const render = () => {
-    dom.act.value = ''; dom.fb.innerHTML = dom.ft.innerHTML = dom.db.innerHTML = dom.ls.innerHTML = ''; document.body.dataset.grid = K.grid ? '1' : '0';
-    if (!K.u) { dom.h.hidden = dom.tools.hidden = dom.db.hidden = dom.bn.hidden = dom.ls.hidden = true; dom.fb.hidden = false; renderForm(); return; }
+    dom.act.value = ''; dom.fb.innerHTML = dom.ft.innerHTML = dom.db.innerHTML = dom.ls.innerHTML = ''; document.body.dataset.grid = K.grid ? '1' : '0'; document.body.dataset.cart = '0';
+    if (!K.u) { dom.h.hidden = dom.tools.hidden = dom.db.hidden = dom.bn.hidden = dom.ls.hidden = true; dom.fb.hidden = false; renderForm(); compactFooter(); return; }
     const isF = K.v === 'cms_detail' || K.idx !== null, m = K.v === 'menu' ? 'menu' : K.v === 'dash' ? 'dash' : K.v === 'nota' ? 'nota' : isF ? 'form' : K.v === 'edit' ? 'edit' : 'list';
     dom.h.hidden = m === 'form'; dom.tools.hidden = m !== 'list' && m !== 'edit'; dom.fb.hidden = m !== 'form'; dom.db.hidden = m !== 'dash'; dom.bn.hidden = m !== 'nota'; dom.ls.hidden = m !== 'list' && m !== 'edit';
     renderChrome();
@@ -555,6 +567,7 @@
     else if (m === 'nota') renderNota();
     else if (m === 'form') renderForm();
     else renderList(m === 'edit');
+    compactFooter();
   };
 
   const finishAuth = u => { K.u = L.u = u; K.parent = K.ret = K.prev = null; persist(); syn(true); setView('dash', null); msg(); render(); };
@@ -715,6 +728,7 @@
     gps: () => { const trg = qForm(GEO_RE); if (trg && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { trg.value = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`; }, () => msg('gps err'), { enableHighAccuracy: true, timeout: 5000 }); },
     'sh-sel': el => { K.cur = el.value; K.parent = K.prefill = K.prodIdx = K.ret = null; setView('list', null); K.page = 1; K.slice = ''; render(); },
     'st-sel': el => { K.sort = parseInt(el.value, 10) || 0; K.page = 1; render(); },
+    'ft-sel': el => { const opt = el.selectedOptions[0]; el.value = ''; opt?._btn?.click(); },
     'act-sel': el => {
       const a = el.value; el.value = ''; if (!a) return;
       if (a === 'edit') { setView(K.v === 'edit' ? 'list' : 'edit', null); render(); }
@@ -747,7 +761,7 @@
 
   document.addEventListener('input', e => {
     const t = e.target;
-    if (t.id === 'q') { if (K.v === 'menu') { const qm = S2(t.value); dom.ft.querySelectorAll('button[data-a]').forEach(btn => { btn.hidden = qm && !btn.textContent.toLowerCase().includes(qm); }); } else { K.page = 1; render(); } return; }
+    if (t.id === 'q') { if (K.v === 'menu') { const qm = S2(t.value); dom.ft.querySelectorAll('[data-a]').forEach(el => { if (el.tagName !== 'SELECT') el.hidden = qm && !el.textContent.toLowerCase().includes(qm); }); } else { K.page = 1; render(); } return; }
     if (t.dataset.df) { const k = t.dataset.df, pos = t.selectionStart; K.df[k] = t.value; persist(); render(); const next = dom.db.querySelector(`[data-df="${CSS.escape(k)}"]`); if (next) { next.focus(); if (typeof pos === 'number') try { next.setSelectionRange(pos, pos); } catch {} } return; }
     if (t.dataset.col) {
       updateFormThumb(t);
