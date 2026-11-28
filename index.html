@@ -44,8 +44,8 @@
     dl: { penjualan: ['idkontak', 'bayar'], pembelian: ['idkontak', 'bayar'], produk_jual: ['idproduk', 'namaproduk'], produk_beli: ['idproduk', 'namaproduk'], ecer: ['idproduk', 'namaproduk'], cicil: ['idpenjualan', 'idkontak'], kas: ['kategori'], produk: ['kategori', 'subkategori'], kontak: ['kategori'] }
   };
   const W = window, L = localStorage, dom = Object.fromEntries(['h', 'q', 'msg', 'tools', 'scanBox:scan-box', 'scanVid:scan-vid', 'fCam:f-cam', 'fImg:f-img', 'fDoc:f-doc', 'fImp:f-imp', 'sh:sh-sel', 'st:st-sel', 'act:act-sel', 'fb:box-form', 'db:box-dash', 'ls:list', 'ft', 'tape', 'bn:box-nota'].map(s => { const [k, v] = s.split(':'); return [k, document.getElementById(v || k)]; }));
-  let db = null, syncing = false, syncTimer = null, scanStream = null, scanTimer = null, seq = 0, needSync = 0;
-  const _dl = Object.assign(document.createElement('datalist'), { id: '_ac' }), clearAcCache = () => _dl.replaceChildren();
+  let db = null, syncing = false, syncTimer = null, scanStream = null, scanTimer = null, seq = 0, needSync = 0, _dl, _k = '';
+  const _ac = new Map(), clearAcCache = () => (_ac.clear(), _dl && (_dl.textContent = ''), _k = '');
   const K = { u: L.u || '', cur: 'penjualan', v: 'dash', idx: null, page: 1, sort: 0, dir: 1, grid: false, conf: null, prefill: null, parent: null, receiptRaw: '', slice: '', df: { u: '', from: '', to: '', kat: '' }, shs: [...HARD.shs], cols: structuredClone(HARD.cols), vis: structuredClone(HARD.vis), fvis: {}, dl: structuredClone(HARD.dl), db: Object.fromEntries(HARD.shs.map(s => [s, s === 'skema' ? HARD.shs.map(x => [x, HARD.cols[x].join(','), HARD.vis[x].join(','), HARD.cols[x].join(','), (HARD.dl[x] || []).join(',')]) : []])), ret: null, prev: null, writing: false };
 
   const S2 = s => String(s ?? '').trim().toLowerCase(), Z = v => parseFloat(String(v ?? '').replace(/[^\d.-]/g, '')) || 0, N = v => Math.max(0, Z(v));
@@ -299,37 +299,31 @@
   const resolveRef = (c, idx = 0) => { const col = S2(c); if (!col || (idx === 0 && K.cur !== 'skema' && (col === `id${S2(K.cur)}` || col === 'id'))) return null; const trg = REF_ALIASES[col] || (col.startsWith('id') ? col.slice(2) : col); return trg && trg !== K.cur && K.shs.includes(trg) ? trg : null; };
   const isDlEnabled = (sh, col) => { const list = K.dl?.[sh] || []; return list.includes('*') || list.includes(S2(col)); };
 
-  addEventListener('focusin', ({ target: el }) => {
-    if (el.tagName !== 'INPUT' || !['', null, '_ac'].includes(el.getAttribute('list'))) return;
-    el.removeAttribute('list');
-    if (!K?.db || !K.u || el.readOnly || el.disabled || !/^(text|search|tel|url|email|number)$/.test(el.type)) return;
-    const src = el.dataset.ac?.trim(), col = S2(el.dataset.col || el.name), sh = el.dataset.sh || K.cur, freq = new Map();
-    const add = (rows, i, fmt) => { if (!Array.isArray(rows) || i < 0) return; for (const r of rows) { const v = String(r?.[i] ?? '').trim(), low = S2(v); if (!v || (el.type === 'number' && !(/^-?(\d*\.)?\d+(e[+-]?\d+)?$/i.test(v) && Number.isFinite(+v)))) continue; const hit = freq.get(low) ?? [fmt ? fmt(r, v) : v, 0]; freq.set(low, (hit[1]++, hit)); } };
-    if (el.id === 'q') {
-      const idxs = vis(sh).map(x => cI(sh, x)).filter(i => i >= 0);
-      for (const r of (K.db[sh] || [])) if (isUserVisible(r, sh)) for (const i of (idxs.length ? idxs : [0])) add([r], i);
-    } else if (src) {
-      let [, from = '', to = '0'] = src.match(/^(?:([^:]*):)?([^]*)/);
-      from = from.trim(); to = to.trim() || '0'; if (/^\d+$/.test(to)) to = +to;
-      const names = Object.keys(K.db);
-      for (const want of !from || from === '*' ? names : [from]) {
-        const name = names.includes(want) ? want : names.find(n => S2(n) === S2(want));
-        if (name !== undefined) add(K.db[name], typeof to === 'number' ? to : cI(name, to));
+  addEventListener('focusin', ({ target: inp }) => {
+    if (inp?.tagName !== 'INPUT') return;
+    const col = inp.dataset.col || inp.name, src = inp.dataset.ac?.trim() || '', sh = inp.dataset.sh || K?.cur || '', isNum = inp.type === 'number', df = inp.dataset.df || '', isQ = inp.id === 'q';
+    const key = isQ ? `q:${sh}` : df ? `df:${df}` : `${isNum ? 'n:' : ''}${src ? `s:${src}` : `c:${sh}:${col}`}`;
+    if (!K?.db || !K?.u || inp.readOnly || inp.disabled || !/^(|text|search|tel|url|email|number)$/.test(inp.type) || (!isQ && !df && ((!col && !src) || (!src && (!sh || FOTO_RE.test(col) || !isDlEnabled(sh, col)))))) return inp.removeAttribute('list');
+    _dl ||= document.body.appendChild(Object.assign(document.createElement('datalist'), { id: '_ac' }));
+    if (inp.getAttribute('list') !== '_ac') inp.setAttribute('list', '_ac');
+    if (_k !== key) (_dl.innerHTML = _ac.get(key) ?? (() => {
+      const freq = new Map(), dbKeys = Object.keys(K.db);
+      const push = (rows, idx, fmt) => { if (rows?.length && idx >= 0) for (const row of rows) { const s = String(row?.[idx] ?? '').trim(); if (s && (!isNum || Number.isFinite(+s))) { const v = fmt ? fmt(row, s) : s, low = S2(v), h = freq.get(low); h ? h[1]++ : freq.set(low, [v, 1]); } } };
+      if (isQ) { const idxs = vis(sh).map(x => cI(sh, x)).filter(i => i >= 0); for (const r of (K.db[sh] || [])) if (isUserVisible(r, sh)) for (const i of (idxs.length ? idxs : [0])) push([r], i); }
+      else if (df) { if (df === 'u') push(K.db.users, 0); else if (df === 'kat') ['produk', 'kas', 'kontak'].forEach(s => push(K.db[s], cI(s, 'kategori'))); }
+      else {
+        const p = src.indexOf(':'), a = p < 0 ? '' : src.slice(0, p), r = (p < 0 ? src : src.slice(p + 1)) || '0', idx0 = src ? -1 : cI(sh, col);
+        const tSh = (!src && sh !== 'produk' && ['idproduk', 'namaproduk'].includes(S2(col))) ? 'produk' : (idx0 >= 0 ? (resolveRef(col, idx0) || sh) : sh);
+        const tCol = src ? (/^\d+$/.test(r) ? +r : r) : (idx0 >= 0 && tSh === sh ? idx0 : col);
+        for (const sSh of (src ? (!a || a === '*' ? dbKeys : [a]) : [tSh])) {
+          const realSh = K.db[sSh] ? sSh : dbKeys.find(k => S2(k) === S2(sSh)), idx = realSh ? (typeof tCol === 'number' ? tCol : cI(realSh, tCol)) : -1;
+          const rc = realSh ? cols(realSh) : [], nI = cI(realSh, rc.find(c => /^(nama|judul|ket)/i.test(c))), qI = cI(realSh, rc.find(c => /^(stok|saldo|qty|jumlah)$/i.test(c)));
+          push(realSh && K.db[realSh], idx, (src || realSh === sh) ? null : (row, s) => realSh === 'kontak' ? `${s} - ${nI >= 0 ? row[nI] : ''}`.replace(/ - $/, '') : `${(nI >= 0 && row[nI]) || s}${qI >= 0 && row[qI] !== undefined && row[qI] !== '' ? ` (${row[qI]})` : ''}`);
+        }
       }
-    } else if (el.dataset.df) {
-      if (el.dataset.df === 'u') add(K.db.users, 0);
-      else if (el.dataset.df === 'kat') ['produk', 'kas', 'kontak'].forEach(s => add(K.db[s], cI(s, 'kategori')));
-    } else {
-      if (!col || !sh || FOTO_RE.test(col) || !isDlEnabled(sh, col)) return;
-      const i = cI(sh, col), from = (sh !== 'produk' && ['idproduk', 'namaproduk'].includes(col)) ? 'produk' : ((i >= 0 && resolveRef(col, i)) || sh), to = from === sh && i >= 0 ? i : col;
-      const ti = typeof to === 'number' ? to : cI(from, to), rc = cols(from), nI = cI(from, rc.find(c => /^(nama|judul|ket)/i.test(c))), qI = cI(from, rc.find(c => /^(stok|saldo|qty|jumlah)$/i.test(c)));
-      add(K.db[from], ti, from === sh ? null : (r, v) => from === 'kontak' ? `${v} - ${nI >= 0 ? r[nI] : ''}`.replace(/ - $/, '') : `${(nI >= 0 && r[nI]) || v}${qI >= 0 && r[qI] !== undefined && r[qI] !== '' ? ` (${r[qI]})` : ''}`);
-    }
-    if (!freq.size) return;
-    _dl.replaceChildren();
-    [...freq.values()].sort((a, b) => b[1] - a[1] || (a[0] > b[0] ? 1 : -1)).forEach(([v]) => _dl.append(new Option(v, v)));
-    if (!_dl.isConnected) (document.body || document.documentElement).append(_dl);
-    el.setAttribute('list', '_ac');
+      const html = [...freq.values()].sort((a, b) => (b[1] - a[1]) || +(a[0] > b[0]) || -1).slice(0, 7).map(([v]) => `<option value="${esc(v)}">`).join('');
+      _ac.set(key, html); return html;
+    })(), _k = key);
   });
 
   const queryRows = () => {
