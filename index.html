@@ -44,8 +44,8 @@
     dl: { penjualan: ['idkontak', 'bayar'], pembelian: ['idkontak', 'bayar'], produk_jual: ['idproduk', 'namaproduk'], produk_beli: ['idproduk', 'namaproduk'], ecer: ['idproduk', 'namaproduk'], cicil: ['idpenjualan', 'idkontak'], kas: ['kategori'], produk: ['kategori', 'subkategori'], kontak: ['kategori'] }
   };
   const W = window, L = localStorage, dom = Object.fromEntries(['h', 'q', 'msg', 'tools', 'scanBox:scan-box', 'scanVid:scan-vid', 'fCam:f-cam', 'fImg:f-img', 'fDoc:f-doc', 'fImp:f-imp', 'sh:sh-sel', 'st:st-sel', 'act:act-sel', 'fb:box-form', 'db:box-dash', 'ls:list', 'ft', 'tape', 'bn:box-nota'].map(s => { const [k, v] = s.split(':'); return [k, document.getElementById(v || k)]; }));
-  let db = null, syncing = false, syncTimer = null, scanStream = null, scanTimer = null, seq = 0, needSync = 0, _dl, _k = '';
-  const _ac = new Map(), clearAcCache = () => (_ac.clear(), _dl && (_dl.textContent = ''), _k = '');
+  let db = null, syncing = false, syncTimer = null, scanStream = null, scanTimer = null, seq = 0, needSync = 0, _dl, _k = '', _full = 0, _sig = '';
+  const _ac = new Map(), clearAcCache = () => (_ac.clear(), _dl && (_dl.textContent = ''), _k = '', _full = 0);
   const K = { u: L.u || '', cur: 'penjualan', v: 'dash', idx: null, page: 1, sort: 0, dir: 1, grid: false, conf: null, prefill: null, parent: null, receiptRaw: '', slice: '', df: { u: '', from: '', to: '', kat: '' }, shs: [...HARD.shs], cols: structuredClone(HARD.cols), vis: structuredClone(HARD.vis), fvis: {}, dl: structuredClone(HARD.dl), db: Object.fromEntries(HARD.shs.map(s => [s, s === 'skema' ? HARD.shs.map(x => [x, HARD.cols[x].join(','), HARD.vis[x].join(','), HARD.cols[x].join(','), (HARD.dl[x] || []).join(',')]) : []])), ret: null, prev: null, writing: false };
 
   const S2 = s => String(s ?? '').trim().toLowerCase(), Z = v => parseFloat(String(v ?? '').replace(/[^\d.-]/g, '')) || 0, N = v => Math.max(0, Z(v));
@@ -298,15 +298,18 @@
   const REF_ALIASES = { role: 'roles', sheet: 'skema' };
   const resolveRef = (c, idx = 0) => { const col = S2(c); if (!col || (idx === 0 && K.cur !== 'skema' && (col === `id${S2(K.cur)}` || col === 'id'))) return null; const trg = REF_ALIASES[col] || (col.startsWith('id') ? col.slice(2) : col); return trg && trg !== K.cur && K.shs.includes(trg) ? trg : null; };
   const isDlEnabled = (sh, col) => { const list = K.dl?.[sh] || []; return list.includes('*') || list.includes(S2(col)); };
+  const _dbSig = db => { if (!db) return ''; let s = ''; for (const k in db) { const r = db[k]; let h = r?.length || 0; if (r) for (let i = 0; i < r.length; i++) { const row = r[i]; if (!row || typeof row !== 'object') { h = (h * 31 + String(row).length) | 0; continue; } let v = ''; for (let j = 0; j < row.length; j++) v += String(row[j] ?? '') + '\x1f'; h = (h * 31 + v.length + (v.charCodeAt(0) || 0) + (v.charCodeAt(v.length >> 1) || 0) + (v.charCodeAt(v.length - 1) || 0)) | 0; } s += `${k}:${h}|`; } return s; };
+  const _syncAc = inp => { const pair = _ac.get(_k), len = inp.value.trim().length, mode = len === 0 ? 1 : len >= 3 ? 2 : 0; if (!pair || _full === mode) return; if (mode === 0) (_dl.textContent = '', _full = 0); else if (mode === 1) (_dl.innerHTML = pair[0], _full = 1); else if (_full === 1 && pair[1]) (_dl.insertAdjacentHTML('beforeend', pair[1]), _full = 2); else (_dl.innerHTML = pair[0] + pair[1], _full = 2); };
 
   addEventListener('focusin', ({ target: inp }) => {
     if (inp?.tagName !== 'INPUT') return;
     const col = inp.dataset.col || inp.name, src = inp.dataset.ac?.trim() || '', sh = inp.dataset.sh || K?.cur || '', isNum = inp.type === 'number', df = inp.dataset.df || '', isQ = inp.id === 'q';
     const key = isQ ? `q:${sh}` : df ? `df:${df}` : `${isNum ? 'n:' : ''}${src ? `s:${src}` : `c:${sh}:${col}`}`;
     if (!K?.db || !K?.u || inp.readOnly || inp.disabled || !/^(|text|search|tel|url|email|number)$/.test(inp.type) || (!isQ && !df && ((!col && !src) || (!src && (!sh || FOTO_RE.test(col) || !isDlEnabled(sh, col)))))) return inp.removeAttribute('list');
+    const sig = _dbSig(K.db); if (_sig !== sig) (_sig = sig, clearAcCache());
     _dl ||= document.body.appendChild(Object.assign(document.createElement('datalist'), { id: '_ac' }));
     if (inp.getAttribute('list') !== '_ac') inp.setAttribute('list', '_ac');
-    if (_k !== key) (_dl.innerHTML = _ac.get(key) ?? (() => {
+    if (!_ac.has(key)) {
       const freq = new Map(), dbKeys = Object.keys(K.db);
       const push = (rows, idx, fmt) => { if (rows?.length && idx >= 0) for (const row of rows) { const s = String(row?.[idx] ?? '').trim(); if (s && (!isNum || Number.isFinite(+s))) { const v = fmt ? fmt(row, s) : s, low = S2(v), h = freq.get(low); h ? h[1]++ : freq.set(low, [v, 1]); } } };
       if (isQ) { const idxs = vis(sh).map(x => cI(sh, x)).filter(i => i >= 0); for (const r of (K.db[sh] || [])) if (isUserVisible(r, sh)) for (const i of (idxs.length ? idxs : [0])) push([r], i); }
@@ -321,10 +324,13 @@
           push(realSh && K.db[realSh], idx, (src || realSh === sh) ? null : (row, s) => realSh === 'kontak' ? `${s} - ${nI >= 0 ? row[nI] : ''}`.replace(/ - $/, '') : `${(nI >= 0 && row[nI]) || s}${qI >= 0 && row[qI] !== undefined && row[qI] !== '' ? ` (${row[qI]})` : ''}`);
         }
       }
-      const html = [...freq.values()].sort((a, b) => (b[1] - a[1]) || +(a[0] > b[0]) || -1).slice(0, 7).map(([v]) => `<option value="${esc(v)}">`).join('');
-      _ac.set(key, html); return html;
-    })(), _k = key);
+      const opts = [...freq.values()].sort((a, b) => (b[1] - a[1]) || +(a[0] > b[0]) || -1).map(([v]) => `<option value="${esc(v)}">`);
+      _ac.set(key, [opts.slice(0, 7).join(''), opts.slice(7).join('')]);
+    }
+    if (_k !== key) (_k = key, _full = -1);
+    _syncAc(inp);
   });
+  addEventListener('input', ({ target: inp }) => { if (inp?.tagName === 'INPUT' && inp.getAttribute('list') === '_ac' && _k) _syncAc(inp); });
 
   const queryRows = () => {
     const rows = K.db[K.cur] || [], q = S2(dom.q.value).split(/\s+/).filter(Boolean), [pType, fk] = parentRel(K.cur), op = pType ? getOpenTrx(pType) : null, uNow = S2(K.u || 'admin'), res = [];
