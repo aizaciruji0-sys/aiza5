@@ -39,14 +39,17 @@
     d1Url: 'https://aiza5.aizaciruji0.workers.dev', gasUrl: 'https://script.google.com/macros/s/AKfycbzaLGQzwe3hoGekhRpMXgg3KOFA2YCdW5jvu5AY4LEoJGWgoXx-_jtz_GgMybDWxKKq/exec',
     store: { name: 'TB. AIZA CIRUJI', sub: 'Jl. Raya Saketi-Bayah', phone: '08787 117 6447', bank: 'BRI 0166 0113 7004 507', footer: 'Terima kasih' },
     shs: ['penjualan', 'produk_jual', 'produk', 'pembelian', 'produk_beli', 'kas', 'kontak', 'cicil', 'ecer', 'users', 'roles', 'cms', 'absen', 'toko', 'skema'],
-    cols: { penjualan: ['idpenjualan', 'user', 'date', 'bayar', 'catatan', 'diskon', 'idkontak', 'lokasi', 'foto', 'status'], produk_jual: ['idprodukjual', 'idpenjualan', 'idproduk', 'namaproduk', 'hargabeli', 'hargajual', 'qty', 'diskon', 'catatan'], produk: ['idproduk', 'subkategori', 'kategori', 'namaproduk', 'hargabeli', 'hargajual', 'stok', 'foto'], pembelian: ['idpembelian', 'user', 'date', 'bayar', 'catatan', 'idkontak', 'lokasi', 'foto', 'status'], produk_beli: ['idprodukbeli', 'idpembelian', 'idproduk', 'namaproduk', 'hargabeli', 'hargajual', 'qty'], kas: ['idkas', 'user', 'date', 'kategori', 'masuk', 'keluar', 'uraian', 'foto'], kontak: ['idkontak', 'user', 'kategori', 'nama', 'alamat', 'hp', 'lokasi', 'foto'], cicil: ['idcicil', 'idpenjualan', 'user', 'date', 'jumlah', 'catatan', 'idkontak'], ecer: ['idecer', 'date', 'user', 'idproduk', 'namaproduk', 'hargabeli', 'hargajual', 'qty', 'diskon', 'catatan'], users: ['user', 'password', 'role'], roles: ['role', 'hide', 'validasi'], cms: ['idcms', 'date', 'user', 'judul', 'kategori', 'foto', 'file', 'status', 'konten'], absen: ['idabsen', 'user', 'date', 'tipe', 'jam', 'lokasi', 'foto', 'catatan'], toko: ['id', 'name', 'sub', 'phone', 'bank', 'footer'], skema: ['sheet', 'cols', 'vis', 'form', 'datalist'] },
-    vis: { penjualan: ['date', 'idkontak', 'status', 'user'], produk_jual: ['namaproduk', 'qty', 'hargajual'], produk: ['namaproduk', 'stok', 'hargajual'], pembelian: ['date', 'idkontak', 'status', 'user'], produk_beli: ['namaproduk', 'qty', 'hargabeli'], kas: ['date', 'kategori', 'uraian', 'masuk', 'keluar'], kontak: ['nama', 'hp', 'kategori'], cicil: ['date', 'idpenjualan', 'jumlah'], ecer: ['date', 'namaproduk', 'qty'], users: ['user', 'role'], roles: ['role', 'hide'], cms: ['judul', 'kategori', 'status'], absen: ['date', 'user', 'tipe', 'jam'], toko: ['id', 'name', 'phone'], skema: ['sheet', 'cols', 'vis', 'datalist'] },
-    dl: { penjualan: ['idkontak', 'bayar'], pembelian: ['idkontak', 'bayar'], produk_jual: ['idproduk', 'namaproduk'], produk_beli: ['idproduk', 'namaproduk'], ecer: ['idproduk', 'namaproduk'], cicil: ['idpenjualan', 'idkontak'], kas: ['kategori'], produk: ['kategori', 'subkategori'], kontak: ['kategori'] }
+    cols: { penjualan: ['idpenjualan', 'user', 'date', 'bayar', 'catatan', 'diskon', 'idkontak', 'lokasi', 'foto', 'status'], produk_jual: ['idprodukjual', 'idpenjualan', 'idproduk', 'namaproduk', 'hargabeli', 'hargajual', 'qty', 'diskon', 'catatan'], produk: ['idproduk', 'subkategori', 'kategori', 'namaproduk', 'hargabeli', 'hargajual', 'stok', 'foto'], pembelian: ['idpembelian', 'user', 'date', 'bayar', 'catatan', 'idkontak', 'lokasi', 'foto', 'status'], produk_beli: ['idprodukbeli', 'idpembelian', 'idproduk', 'namaproduk', 'hargabeli', 'hargajual', 'qty'], kas: ['idkas', 'user', 'date', 'kategori', 'masuk', 'keluar', 'uraian', 'foto'], kontak: ['idkontak', 'user', 'kategori', 'nama', 'alamat', 'hp', 'lokasi', 'foto'], cicil: ['idcicil', 'idpenjualan', 'user', 'date', 'jumlah', 'catatan', 'idkontak'], ecer: ['idecer', 'date', 'user', 'idproduk', 'namaproduk', 'hargabeli', 'hargajual', 'qty', 'diskon', 'catatan'], users: ['user', 'password', 'role'], roles: ['role', 'hide', 'validasi'], cms: ['idcms', 'date', 'user', 'judul', 'kategori', 'foto', 'file', 'status', 'konten'], absen: ['idabsen', 'user', 'date', 'tipe', 'jam', 'lokasi', 'foto', 'catatan'], toko: ['id', 'name', 'sub', 'phone', 'bank', 'footer'], skema: ['sheet', 'cols', 'vis', 'form', 'datalist', 'type'] },
+    vis: { penjualan: ['date', 'idkontak', 'status', 'user'], produk_jual: ['namaproduk', 'qty', 'hargajual'], produk: ['namaproduk', 'stok', 'hargajual'], pembelian: ['date', 'idkontak', 'status', 'user'], produk_beli: ['namaproduk', 'qty', 'hargabeli'], kas: ['date', 'kategori', 'uraian', 'masuk', 'keluar'], kontak: ['nama', 'hp', 'kategori'], cicil: ['date', 'idpenjualan', 'jumlah'], ecer: ['date', 'namaproduk', 'qty'], users: ['user', 'role'], roles: ['role', 'hide'], cms: ['judul', 'kategori', 'status'], absen: ['date', 'user', 'tipe', 'jam'], toko: ['id', 'name', 'phone'], skema: ['sheet', 'cols', 'vis', 'datalist', 'type'] },
+    dl: { penjualan: ['idkontak', 'bayar'], pembelian: ['idkontak', 'bayar'], produk_jual: ['idproduk', 'namaproduk'], produk_beli: ['idproduk', 'namaproduk'], ecer: ['idproduk', 'namaproduk'], cicil: ['idpenjualan', 'idkontak'], kas: ['kategori'], produk: ['kategori', 'subkategori'], kontak: ['kategori'] },
+    tp: { penjualan: { date: 'date', bayar: 'number', diskon: 'number', catatan: 'textarea' }, produk_jual: { hargabeli: 'number', hargajual: 'number', qty: 'number', diskon: 'number', catatan: 'textarea' }, produk: { hargabeli: 'number', hargajual: 'number', stok: 'number' }, pembelian: { date: 'date', bayar: 'number', catatan: 'textarea' }, produk_beli: { hargabeli: 'number', hargajual: 'number', qty: 'number' }, kas: { date: 'date', masuk: 'number', keluar: 'number', uraian: 'textarea' }, kontak: { alamat: 'textarea', hp: 'tel' }, cicil: { date: 'date', jumlah: 'number', catatan: 'textarea' }, ecer: { date: 'date', hargabeli: 'number', hargajual: 'number', qty: 'number', diskon: 'number', catatan: 'textarea' }, users: { password: 'password' }, roles: { hide: 'textarea', validasi: 'textarea' }, cms: { date: 'date', konten: 'textarea' }, absen: { date: 'date', jam: 'time', catatan: 'textarea' } }
   };
+  const tpStr = s => Object.entries(HARD.tp[s] || {}).map(([k, v]) => `${k}:${v}`).join(',');
+  const parseTp = v => Object.fromEntries(String(v || '').split(',').map(x => x.split(':').map(y => y.trim().toLowerCase())).filter(([k, t]) => k && t));
   const W = window, L = localStorage, dom = Object.fromEntries(['h', 'q', 'msg', 'tools', 'scanBox:scan-box', 'scanVid:scan-vid', 'fCam:f-cam', 'fImg:f-img', 'fDoc:f-doc', 'fImp:f-imp', 'sh:sh-sel', 'st:st-sel', 'act:act-sel', 'fb:box-form', 'db:box-dash', 'ls:list', 'ft', 'tape', 'bn:box-nota'].map(s => { const [k, v] = s.split(':'); return [k, document.getElementById(v || k)]; }));
   let db = null, syncing = false, syncTimer = null, scanStream = null, scanTimer = null, seq = 0, needSync = 0, _dl, _k = '', _full = 0, _sig = '';
   const _ac = new Map(), clearAcCache = () => (_ac.clear(), _dl && (_dl.textContent = ''), _k = '', _full = 0);
-  const K = { u: L.u || '', cur: 'penjualan', v: 'dash', idx: null, page: 1, sort: 0, dir: 1, grid: false, conf: null, prefill: null, parent: null, receiptRaw: '', slice: '', df: { u: '', from: '', to: '', kat: '' }, shs: [...HARD.shs], cols: structuredClone(HARD.cols), vis: structuredClone(HARD.vis), fvis: {}, dl: structuredClone(HARD.dl), db: Object.fromEntries(HARD.shs.map(s => [s, s === 'skema' ? HARD.shs.map(x => [x, HARD.cols[x].join(','), HARD.vis[x].join(','), HARD.cols[x].join(','), (HARD.dl[x] || []).join(',')]) : []])), ret: null, prev: null, writing: false };
+  const K = { u: L.u || '', cur: 'penjualan', v: 'dash', idx: null, page: 1, sort: 0, dir: 1, grid: false, conf: null, prefill: null, parent: null, receiptRaw: '', slice: '', df: { u: '', from: '', to: '', kat: '' }, shs: [...HARD.shs], cols: structuredClone(HARD.cols), vis: structuredClone(HARD.vis), fvis: {}, dl: structuredClone(HARD.dl), tp: structuredClone(HARD.tp), db: Object.fromEntries(HARD.shs.map(s => [s, s === 'skema' ? HARD.shs.map(x => [x, HARD.cols[x].join(','), HARD.vis[x].join(','), HARD.cols[x].join(','), (HARD.dl[x] || []).join(','), tpStr(x)]) : []])), ret: null, prev: null, writing: false };
 
   const S2 = s => String(s ?? '').trim().toLowerCase(), Z = v => parseFloat(String(v ?? '').replace(/[^\d.-]/g, '')) || 0, N = v => Math.max(0, Z(v));
   const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -145,7 +148,7 @@
 
   function applySchemaTable() {
     const seen = new Set(K.db.skema.map(r => S2(r[0])));
-    HARD.shs.forEach(s => { if (!seen.has(s)) K.db.skema.push([s, K.cols[s].join(','), K.vis[s].join(','), K.cols[s].join(','), (HARD.dl[s] || []).join(',')]); });
+    HARD.shs.forEach(s => { if (!seen.has(s)) K.db.skema.push([s, K.cols[s].join(','), K.vis[s].join(','), K.cols[s].join(','), (HARD.dl[s] || []).join(','), tpStr(s)]); });
     K.db.skema = dedupeRows(K.db.skema);
     const nextShs = [], split = v => String(v || '').split(',').map(S2).filter(Boolean);
     K.db.skema.forEach(r => {
@@ -156,6 +159,7 @@
       K.vis[sh] = nv.filter(x => K.cols[sh].includes(x)); if (!K.vis[sh].length) K.vis[sh] = K.cols[sh].slice(0, 3);
       K.fvis[sh] = nf.filter(x => K.cols[sh].includes(x)); if (!K.fvis[sh].length) K.fvis[sh] = K.cols[sh].slice();
       K.dl[sh] = r[4] !== undefined ? nd.filter(x => x === '*' || K.cols[sh].includes(x)) : (K.dl[sh] || HARD.dl[sh] || []);
+      K.tp[sh] = r[5] !== undefined ? parseTp(r[5]) : (K.tp[sh] || HARD.tp[sh] || {});
       K.db[sh] = dedupeRows(remapRows(K.db[sh] || [], oldCols, K.cols[sh]).map(dr => Object.assign(new Array(K.cols[sh].length).fill(''), dr.slice(0, K.cols[sh].length))));
     });
     HARD.shs.forEach(s => { if (!nextShs.includes(s)) nextShs.push(s); });
@@ -195,10 +199,11 @@
   const prodIdOf = p => S2(cV(p, 'produk', 'idproduk') || p?.[0]);
   const findMasterProd = (r, sh) => r ? (K.db.produk || []).find(p => (S2(cV(r, sh, 'idproduk')) && prodIdOf(p) === S2(cV(r, sh, 'idproduk'))) || (S2(cV(r, sh, 'namaproduk')) && S2(cV(p, 'produk', 'namaproduk')) === S2(cV(r, sh, 'namaproduk')))) || null : null;
   const kontakIdOf = k => S2(cV(k, 'kontak', 'idkontak') || k?.[0]);
-  const kontakLabel = kr => kr ? `${cV(kr, 'kontak', 'idkontak') || kr[0]} - ${cV(kr, 'kontak', 'nama')}`.replace(/ - $/, '') : '';
-  const findKontak = v => { const q = S2(v); return q ? (K.db.kontak || []).find(x => kontakIdOf(x) === q || S2(cV(x, 'kontak', 'nama')) === q || S2(kontakLabel(x)) === q) || null : null; };
+  const kontakLabel = kr => { if (!kr) return ''; const id = cV(kr, 'kontak', 'idkontak') || kr[0], ext = ['nama', 'alamat', 'hp'].map(k => cV(kr, 'kontak', k)).filter(Boolean).join(' | '); return ext ? `${id} - ${ext}` : id; };
+  const findKontak = v => { const q = S2(v), idPart = q.split(/\s+-\s+/)[0].trim(); return q ? (K.db.kontak || []).find(x => kontakIdOf(x) === q || (idPart && kontakIdOf(x) === idPart) || S2(cV(x, 'kontak', 'nama')) === q || S2(cV(x, 'kontak', 'hp')) === q || S2(kontakLabel(x)) === q) || null : null; };
   const resolveKontakId = v => { const r = findKontak(v); return r ? (cV(r, 'kontak', 'idkontak') || r[0] || '') : String(v || '').trim(); };
   const kontakName = kId => { if (!kId) return ''; const r = findKontak(kId); return r ? (cV(r, 'kontak', 'nama') || kId) : kId; };
+  const applyKontakToTrx = kr => { if (!kr) return; const kId = cV(kr, 'kontak', 'idkontak') || kr[0] || '', op = getOpenTrx('penjualan') || getOpenTrx('pembelian'); if (op) { const ki = cI(op.type, 'idkontak'); if (ki !== -1) { op.row[ki] = kId; save(op.row, op.type, 1); persist(); } return go('list', childOf(op.type), '', null, false); } K.cur = 'penjualan'; K.prefill = { idkontak: kontakLabel(kr) }; setView('form', -1); render(); };
   const syncMasterProduk = (sh, oldRow, newRow) => {
     if (!STOCK_SHEETS.includes(sh)) return;
     const m = sh === 'produk_beli' ? 1 : -1, si = cI('produk', 'stok'), hbI = cI('produk', 'hargabeli'), hjI = cI('produk', 'hargajual'), touched = new Set();
@@ -287,7 +292,7 @@
   const hasDraftItems = t => { const ch = childOf(t), op = getOpenTrx(t); return Boolean(ch && op && K.db[ch]?.some(r => S2(cV(r, ch, fkCol(ch))) === S2(op.id))); };
   const dropRows = (sh, pred) => { K.db[sh] = (K.db[sh] || []).filter(r => pred(r) ? (syncMasterProduk(sh, r, null), save(r, sh, 0), false) : true); };
   const dropTrxDeps = (t, id) => { const ch = childOf(t), fk = fkCol(ch); if (ch) dropRows(ch, r => S2(cV(r, ch, fk)) === S2(id)); if (t === 'penjualan') dropRows('cicil', c => S2(cV(c, 'cicil', 'idpenjualan')) === S2(id)); };
-  const dropDynamicSheet = sh => { if (sh && !HARD.shs.includes(sh)) { save([sh], sh, -1); ['db', 'cols', 'vis', 'fvis', 'dl'].forEach(k => delete K[k][sh]); } };
+  const dropDynamicSheet = sh => { if (sh && !HARD.shs.includes(sh)) { save([sh], sh, -1); ['db', 'cols', 'vis', 'fvis', 'dl', 'tp'].forEach(k => delete K[k][sh]); } };
 
   const prefillProd = p => ({ idproduk: cV(p, 'produk', 'idproduk') || p[0] || '', namaproduk: cV(p, 'produk', 'namaproduk') || '', hargabeli: cV(p, 'produk', 'hargabeli') || '', hargajual: cV(p, 'produk', 'hargajual') || '', qty: '1', diskon: '', catatan: '' });
   const openProdForm = (p, sheet = K.parent?.type === 'pembelian' ? 'produk_beli' : 'produk_jual') => {
@@ -298,6 +303,7 @@
   const REF_ALIASES = { role: 'roles', sheet: 'skema' };
   const resolveRef = (c, idx = 0) => { const col = S2(c); if (!col || (idx === 0 && K.cur !== 'skema' && (col === `id${S2(K.cur)}` || col === 'id'))) return null; const trg = REF_ALIASES[col] || (col.startsWith('id') ? col.slice(2) : col); return trg && trg !== K.cur && K.shs.includes(trg) ? trg : null; };
   const isDlEnabled = (sh, col) => { const list = K.dl?.[sh] || []; return list.includes('*') || list.includes(S2(col)); };
+  const colTypeOf = (sh, col) => { const t = K.tp?.[sh]?.[S2(col)]; if (t) return t; if (DATE_RE.test(col)) return 'date'; if (/catatan|alamat|uraian|konten|akses|hide|validasi/i.test(col)) return 'textarea'; return 'text'; };
   const _dbSig = db => { if (!db) return ''; let s = ''; for (const k in db) { const r = db[k]; let h = r?.length || 0; if (r) for (let i = 0; i < r.length; i++) { const row = r[i]; if (!row || typeof row !== 'object') { h = (h * 31 + String(row).length) | 0; continue; } let v = ''; for (let j = 0; j < row.length; j++) v += String(row[j] ?? '') + '\x1f'; h = (h * 31 + v.length + (v.charCodeAt(0) || 0) + (v.charCodeAt(v.length >> 1) || 0) + (v.charCodeAt(v.length - 1) || 0)) | 0; } s += `${k}:${h}|`; } return s; };
   const _syncAc = inp => { const pair = _ac.get(_k), len = inp.value.trim().length, mode = len === 0 ? 1 : len >= 3 ? 2 : 0; if (!pair || _full === mode) return; if (mode === 0) (_dl.textContent = '', _full = 0); else if (mode === 1) (_dl.innerHTML = pair[0], _full = 1); else if (_full === 1 && pair[1]) (_dl.insertAdjacentHTML('beforeend', pair[1]), _full = 2); else (_dl.innerHTML = pair[0] + pair[1], _full = 2); };
 
@@ -321,7 +327,7 @@
         for (const sSh of (src ? (!a || a === '*' ? dbKeys : [a]) : [tSh])) {
           const realSh = K.db[sSh] ? sSh : dbKeys.find(k => S2(k) === S2(sSh)), idx = realSh ? (typeof tCol === 'number' ? tCol : cI(realSh, tCol)) : -1;
           const rc = realSh ? cols(realSh) : [], nI = cI(realSh, rc.find(c => /^(nama|judul|ket)/i.test(c))), qI = cI(realSh, rc.find(c => /^(stok|saldo|qty|jumlah)$/i.test(c)));
-          push(realSh && K.db[realSh], idx, (src || realSh === sh) ? null : (row, s) => realSh === 'kontak' ? `${s} - ${nI >= 0 ? row[nI] : ''}`.replace(/ - $/, '') : `${(nI >= 0 && row[nI]) || s}${qI >= 0 && row[qI] !== undefined && row[qI] !== '' ? ` (${row[qI]})` : ''}`);
+          push(realSh && K.db[realSh], idx, (src || realSh === sh) ? null : (row, s) => realSh === 'kontak' ? kontakLabel(row) : `${(nI >= 0 && row[nI]) || s}${qI >= 0 && row[qI] !== undefined && row[qI] !== '' ? ` (${row[qI]})` : ''}`);
         }
       }
       const opts = [...freq.values()].sort((a, b) => (b[1] - a[1]) || +(a[0] > b[0]) || -1).map(([v]) => `<option value="${esc(v)}">`);
@@ -438,8 +444,8 @@
       else if (idx === -1 && !val && col === 'user') val = K.u || 'admin';
       else if (idx === -1 && !val && sh === 'cms' && col === 'status') val = 'publish';
       const dispVal = col === 'idkontak' && val ? (kontakLabel(findKontak(val)) || val) : val;
-      const isLong = /catatan|alamat|uraian|konten|akses|hide|validasi/i.test(col), tag = isLong ? 'textarea' : 'input';
-      dom.fb.insertAdjacentHTML('beforeend', `<${tag} ${DATE_RE.test(col) ? 'type="date"' : ''} placeholder="${esc(col === 'idkontak' ? 'kontak (id / nama)' : col)}" value="${esc(dispVal)}" data-col="${esc(col)}" data-sh="${esc(sh)}">${isLong ? esc(dispVal) : ''}</${tag}>`);
+      const fType = colTypeOf(sh, col), isLong = fType === 'textarea', tag = isLong ? 'textarea' : 'input';
+      dom.fb.insertAdjacentHTML('beforeend', `<${tag} ${!isLong && fType ? `type="${esc(fType)}"` : ''} placeholder="${esc(col === 'idkontak' ? 'kontak (id / nama / alamat / hp)' : col)}" value="${esc(dispVal)}" data-col="${esc(col)}" data-sh="${esc(sh)}">${isLong ? esc(dispVal) : ''}</${tag}>`);
       updateFormThumb(qForm(col));
     });
     if (formCols.some(k => /foto/i.test(k))) { addFooter('cam', 'kamera', sh); addFooter('pic', 'file foto', sh); }
@@ -455,6 +461,7 @@
     msg(); addFooter('back', '<'); addFooter('save-row', 'save'); renderFormBlock(K.cur, row, K.idx, formCols);
     if (K.idx === -1 && getRoleRules().includes('wajiblokasi')) { const loc = qForm(GEO_RE); if (loc && !loc.value) fillGps(loc, true, 'here()'); }
     if (K.cur === 'produk') addFooter('gimg', 'gimg');
+    if (K.cur === 'kontak' && hasRowIdx()) addFooter('kontak-trx', 'trx');
     if (K.cur === 'produk' && hasRowIdx()) { addFooter('jual-prod', 'jual'); addFooter('beli-prod', 'beli'); addFooter('ecer-prod', 'ecer'); }
     if (STOCK_SHEETS.includes(K.cur) && (findMasterProd(row, K.cur) || (K.prefill && findMasterProd([K.prefill.idproduk, '', '', K.prefill.namaproduk], 'produk')))) addFooter('edit-prod', 'edit produk');
     if (hasRowIdx()) { if (!isDraft) addFooter('dup-row', 'dup'); addFooter('del-row', K.conf === 'del' ? 'sure?' : 'del'); }
@@ -501,7 +508,7 @@
     if (!inp) return; const col = inp.dataset.col || '', val = (inp.value || '').trim(); let th = dom.fb.querySelector(`img[data-thumb-col="${CSS.escape(col)}"]`);
     if (val && (/foto/i.test(col) || isSafeUrl(val))) { if (!th) { th = Object.assign(document.createElement('img'), { alt: 'thumb', onerror: () => th.remove() }); th.dataset.thumbCol = col; inp.insertAdjacentElement('afterend', th); } th.src = val; } else th?.remove();
   };
-  const persist = () => { try { L.setItem('apex', JSON.stringify({ cur: K.cur, u: K.u, shs: K.shs, cols: K.cols, vis: K.vis, fvis: K.fvis, dl: K.dl, parent: K.parent, grid: K.grid, df: K.df })); idbWrite('kv', s => s.put(K.db, 'apex_matrix')); } catch {} };
+  const persist = () => { try { L.setItem('apex', JSON.stringify({ cur: K.cur, u: K.u, shs: K.shs, cols: K.cols, vis: K.vis, fvis: K.fvis, dl: K.dl, tp: K.tp, parent: K.parent, grid: K.grid, df: K.df })); idbWrite('kv', s => s.put(K.db, 'apex_matrix')); } catch {} };
 
   const render = () => {
     dom.act.value = ''; dom.fb.innerHTML = dom.ft.innerHTML = dom.db.innerHTML = dom.ls.innerHTML = ''; document.body.dataset.grid = K.grid ? '1' : '0'; document.body.dataset.cart = '0';
@@ -521,7 +528,7 @@
       if (idx === -1 && K.prefill) c.forEach((col, ci) => { if (K.prefill[col] != null) row[ci] = String(K.prefill[col]); });
       qForm().forEach(inp => { const ci = c.indexOf(inp.dataset.col); if (ci !== -1) row[ci] = inp.dataset.col === 'idkontak' ? resolveKontakId(inp.value) : inp.value.trim(); });
       if (sh !== 'produk' && c.some(k => ['idproduk', 'namaproduk'].includes(k))) { const mp = findMasterProd(row, sh); if (mp) ['idproduk', 'namaproduk', 'hargabeli', 'hargajual'].forEach(k => { const ci = c.indexOf(k); if (ci !== -1 && !row[ci]) row[ci] = cV(mp, 'produk', k); }); }
-      if (sh === 'skema') { row[0] = S2(row[0]); if (!row[0]) return msg('nama sheet wajib diisi'); [1, 2, 3, 4].forEach(i => { row[i] = String(row[i] || '').split(',').map(S2).filter(Boolean).join(','); }); if (!row[1]) return msg('kolom wajib diisi'); }
+      if (sh === 'skema') { row[0] = S2(row[0]); if (!row[0]) return msg('nama sheet wajib diisi'); [1, 2, 3, 4].forEach(i => { row[i] = String(row[i] || '').split(',').map(S2).filter(Boolean).join(','); }); if (row[5] !== undefined) row[5] = Object.entries(parseTp(row[5])).map(([k, v]) => `${k}:${v}`).join(','); if (!row[1]) return msg('kolom wajib diisi'); }
       if (row[0] && (K.db[sh] || []).some((r, i) => i !== idx && S2(r[0]) === S2(row[0]))) return msg('id sudah ada');
       const rules = getRoleRules(), valOf = k => row[c.indexOf(k)] || '', geoCol = c.find(k => GEO_RE.test(k)), fotoCol = c.find(k => /foto/i.test(k));
       if (sh === 'roles' && !valOf('hide')) return msg('kolom hide wajib diisi');
@@ -570,6 +577,7 @@
     'dl-cms-file': () => { const r = K.db.cms?.[K.idx] || [], data = cV(r, 'cms', 'file'), judul = cV(r, 'cms', 'judul') || 'berkas'; if (!data) return; /^https?:\/\//i.test(data) ? triggerLink(data) : /^data:/i.test(data) ? triggerLink(data, judul.replace(/\s+/g, '_')) : dl(data, `${judul}.txt`); },
     nav: b => { K.page = 1; go('list', b.dataset.s, b.dataset.slice || ''); }, add: () => { if (!NO_ADD.includes(K.cur) && hasAccess('add', K.cur)) go('form', K.cur, K.slice, -1); },
     'edit-prod': () => { const r = hasRowIdx() ? K.db[K.cur]?.[K.idx] : null, mp = findMasterProd(r, K.cur) || (K.prefill && findMasterProd([K.prefill.idproduk, '', '', K.prefill.namaproduk], 'produk')); const pi = mp ? (K.db.produk || []).indexOf(mp) : -1; if (pi >= 0) go('form', 'produk', '', pi); },
+    'kontak-trx': () => { if (hasRowIdx()) applyKontakToTrx(K.db.kontak?.[K.idx]); },
     'jual-prod': () => { if (hasRowIdx()) openProdForm(K.db.produk[K.idx], 'produk_jual'); }, 'beli-prod': () => { if (hasRowIdx()) openProdForm(K.db.produk[K.idx], 'produk_beli'); }, 'ecer-prod': () => { if (hasRowIdx()) openProdForm(K.db.produk[K.idx], 'ecer'); },
     'del-row': () => {
       if (K.conf !== 'del') { K.conf = 'del'; return render(); }
@@ -614,11 +622,6 @@
     if (r && K.v === 'list' && K.idx === null) {
       const idx = parseInt(r.dataset.idx, 10);
       if (restoreRet()) return render();
-      if (K.cur === 'kontak' && K.db.kontak?.[idx]) {
-        const picked = K.db.kontak[idx], kId = cV(picked, 'kontak', 'idkontak') || picked[0] || '', op = getOpenTrx('penjualan') || getOpenTrx('pembelian');
-        if (op) { const ki = cI(op.type, 'idkontak'); if (ki !== -1) { op.row[ki] = kId; save(op.row, op.type, 1); persist(); } return go('list', childOf(op.type), '', null, false); }
-        K.cur = 'penjualan'; K.prefill = { idkontak: kontakLabel(picked) }; setView('form', -1); return render();
-      }
       if (K.cur === 'cms') { setView('cms_detail', idx); return render(); }
       if (K.cur === 'produk') return openProdForm(K.db.produk[idx] || []);
       if (isTrx() && K.db[K.cur]?.[idx]) { const tType = K.cur; K.parent = { type: tType, id: trxIdOf(tType, K.db[tType][idx]), open: true }; return go('list', childOf(tType), '', null, false); }
@@ -671,7 +674,7 @@
 
   (() => {
     if (L.theme) applyTheme(L.theme);
-    try { const d = JSON.parse(L.getItem('apex') || 'null'); if (d && typeof d === 'object') { ['shs', 'cols', 'vis', 'fvis', 'dl'].forEach(k => { if (d[k]) K[k] = d[k]; }); if (d.parent) K.parent = d.parent; if (d.cur && K.shs.includes(d.cur)) K.cur = d.cur; if (d.u) K.u = L.u = d.u; if (d.df) Object.assign(K.df, d.df); K.grid = Boolean(d.grid); } } catch {}
+    try { const d = JSON.parse(L.getItem('apex') || 'null'); if (d && typeof d === 'object') { ['shs', 'cols', 'vis', 'fvis', 'dl', 'tp'].forEach(k => { if (d[k]) K[k] = d[k]; }); if (d.parent) K.parent = d.parent; if (d.cur && K.shs.includes(d.cur)) K.cur = d.cur; if (d.u) K.u = L.u = d.u; if (d.df) Object.assign(K.df, d.df); K.grid = Boolean(d.grid); } } catch {}
     initDB(async () => { const matrix = await idbRead('kv', 'apex_matrix'); if (matrix && typeof matrix === 'object') Object.assign(K.db, matrix); applySchemaTable(); render(); syn(true); });
   })();
   </script>
